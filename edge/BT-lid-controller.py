@@ -24,7 +24,7 @@ BLE_CONFIG = {
 COMMANDS = {
     "LID_CLOSE": b"\x02",  # LIDを閉じる
     "LID_OPEN": b"\x01",   # LIDを開く
-    "COMPLETE": b"\x02"    # 完了通知（closeのみ）
+    "COMPLETE": b"\x01"    # 完了通知（closeのみ）
 }
 
 class MotorController:
