@@ -3,7 +3,6 @@ import bluetooth
 import aioble
 import time
 from machine import Pin
-import struct
 
 # モーターのピン定義
 MOTOR_PINS = {
@@ -23,8 +22,9 @@ BLE_CONFIG = {
 
 # コマンド定義
 COMMANDS = {
-    "ROTATE": b"\x01",
-    "COMPLETE": b"\x00"  # シンプルに1バイトの0を送信
+    "LID_CLOSE": b"\x02",  # LIDを閉じる
+    "LID_OPEN": b"\x01",   # LIDを開く
+    "COMPLETE": b"\x02"    # 完了通知（closeのみ）
 }
 
 class MotorController:
@@ -43,6 +43,7 @@ class MotorController:
     
     STEPS_PER_ROTATION = 512
     DEFAULT_DELAY = 0.001
+    DEFAULT_TURNS = 4  # デフォルトの回転数
     
     def __init__(self):
         self.pins = [
@@ -66,8 +67,8 @@ class MotorController:
         for pin in self.pins:
             pin.value(0)
 
-class BLEMotorServer:
-    """Bluetoothモーター制御サーバー"""
+class BLELidController:
+    """Bluetooth LID制御サーバー"""
     
     def __init__(self):
         self.led = Pin("LED", Pin.OUT)
@@ -97,14 +98,31 @@ class BLEMotorServer:
         )
         print("Connected to central")
         return connection
-    
-    async def handle_motor_command(self):
-        print("Rotating clockwise...")
-        self.motor.rotate(turns=1, clockwise=True)
-        time.sleep(1)
-        
-        print("Rotating counter-clockwise...")
-        self.motor.rotate(turns=1, clockwise=False)
+
+    async def handle_lid_command(self, command, connection):
+        """
+        LIDの開閉制御
+        Args:
+            command: 受信したコマンド
+            connection: BLE接続オブジェクト
+        """
+        if command == COMMANDS["LID_CLOSE"]:
+            print("Closing lid...")
+            # LIDを閉じる（時計回り）
+            self.motor.rotate(turns=self.motor.DEFAULT_TURNS, clockwise=True)
+            # close完了時のみ通知
+            print("Sending close completion notification...")
+            await self.char.notify(connection, COMMANDS["COMPLETE"])
+            print("Close notification sent")
+            
+        elif command == COMMANDS["LID_OPEN"]:
+            print("Opening lid...")
+            # LIDを開く（反時計回り）
+            self.motor.rotate(turns=self.motor.DEFAULT_TURNS, clockwise=False)
+            print("Open operation completed")
+            
+        else:
+            print(f"Unknown command: {command}")
     
     async def run(self):
         await self.setup()
@@ -112,22 +130,17 @@ class BLEMotorServer:
         
         while connection.is_connected():
             try:
-                written = await self.char.written() 
+                written = await self.char.written()
                 if written is None:
                     continue
                     
                 data = written[1]
                 
-                if data == COMMANDS["ROTATE"]:
-                    try:
-                        await self.handle_motor_command()
-                        print("Sending completion notification (0)...")
-                        await self.char.notify(connection, COMMANDS["COMPLETE"])
-                        print("Notification sent")
-                    finally:
-                        self.motor.cleanup()
-                else:
-                    print(f"Unknown Command Received: {data}")
+                try:
+                    # LID制御を実行
+                    await self.handle_lid_command(data, connection)
+                finally:
+                    self.motor.cleanup()
                     
             except Exception as e:
                 print(f"Error in operation: {e}")
@@ -135,8 +148,8 @@ class BLEMotorServer:
         print("Disconnected from Central")
 
 async def main():
-    server = BLEMotorServer()
-    await server.run()
+    controller = BLELidController()
+    await controller.run()
 
 if __name__ == "__main__":
     asyncio.run(main())
