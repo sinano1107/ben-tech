@@ -8,7 +8,7 @@ from machine import Pin
 # LEDピンの設定
 led = Pin("LED", Pin.OUT)
 
-# サービスとキャラウタリスティックのUUID
+# サービスとキャラクタリスティックのUUID
 SERVICE_UUID = bluetooth.UUID("00a8a81d-4125-410e-a5c3-62615319bcbd")
 LISTEN_CONTROL_CHAR_UUID = bluetooth.UUID("46898fe4-4b87-47c5-833f-6b9df8ca3b13")
 NOTIFY_ON_BUTTON_PRESSED_CHAR_UUID = bluetooth.UUID(
