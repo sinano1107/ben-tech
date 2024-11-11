@@ -82,9 +82,32 @@ class BenTechDeviceManager:
         print(f"[{self.name}] {msg}")
 
 
-class ResponsableDeviceManager(BenTechDeviceManager):
-    def __init__(self, name, response_service_id, response_char_id):
+class ControllableDeviceManager(BenTechDeviceManager):
+    def __init__(self, name, control_service_id, control_char_id):
         super().__init__(name)
+        self.control_service_id = control_service_id
+        self.control_char_id = control_char_id
+
+    async def control(self, value):
+        char = await self.get_characteristic(
+            self.control_service_id, self.control_char_id
+        )
+        if char is None:
+            self._log("characteristicが不明のためコントロールできません")
+            return
+        await char.write(value)
+
+
+class ResponsableDeviceManager(ControllableDeviceManager):
+    def __init__(
+        self,
+        name,
+        control_service_id,
+        control_char_id,
+        response_service_id,
+        response_char_id,
+    ):
+        super().__init__(name, control_service_id, control_char_id)
         self.response_service_id = response_service_id
         self.response_char_id = response_char_id
 
@@ -106,11 +129,12 @@ class ResponsableDeviceManager(BenTechDeviceManager):
 
 class LidControllerManager(ResponsableDeviceManager):
     def __init__(self):
-        self.service_id = const("00a8a81d-4125-410e-a5c3-62615319bcbd")
-        self.listen_control_char_id = const("46898fe4-4b87-47c5-833f-6b9df8ca3b13")
+        service_id = const("00a8a81d-4125-410e-a5c3-62615319bcbd")
         super().__init__(
             name=const("BT-lid-controller"),
-            response_service_id=self.service_id,
+            control_service_id=service_id,
+            control_char_id=const("46898fe4-4b87-47c5-833f-6b9df8ca3b13"),
+            response_service_id=service_id,
             response_char_id=const("2273b7b4-fbbd-4904-81f5-d9f6ea4dadc7"),
         )
 
@@ -132,17 +156,12 @@ class LidControllerManager(ResponsableDeviceManager):
         await self.listen_response()
 
     async def _control(self, open):
-        char = await self.get_characteristic(
-            self.service_id, self.listen_control_char_id
-        )
-        if char is None:
-            return
-        await char.write(b"\x01" if open else b"\x02")
+        await super().control(b"\x01" if open else b"\x02")
         self._log(f"蓋の操作を指示しました open:{open}")
 
 
 """
-class PaperObserverManager(BenTEchDeviceManager):
+class PaperObserverManager(ResponsableDeviceManager):
     def __init__(self):
         super().__init__("BT-paper-manager")
         self.service_id = const("33d5f2a5-3c6e-4fc0-8f2f-05a76938a929")
