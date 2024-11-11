@@ -8,9 +8,9 @@ from machine import Pin
 DEVICE_NAME = "BT-lid-controller"
 
 # サービスとキャラクタリスティックのUUID
-SERVICE_UUID = bluetooth.UUID("00a8a81d-4125-410e-a5c3-62615319bcbd")
-LISTEN_CONTROL_CHAR_UUID = bluetooth.UUID("46898fe4-4b87-47c5-833f-6b9df8ca3b13")
-NOTIFY_RESPONSE_CHAR_UUID = bluetooth.UUID("2273b7b4-fbbd-4904-81f5-d9f6ea4dadc7")
+SERVICE_UUID = bluetooth.UUID("ac6dd643-a32e-42fb-836d-8130790d9ab4")
+LISTEN_CONTROL_CHAR_UUID = bluetooth.UUID("74779bc7-1e28-4cb1-8dd7-3a3f2a9259ab")
+NOTIFY_RESPONSE_CHAR_UUID = bluetooth.UUID("82bdb1a9-4ffd-4a97-8b5f-af7e84655133")
 
 led = Pin("LED", Pin.OUT)
 

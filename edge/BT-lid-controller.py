@@ -1,4 +1,6 @@
 # BT-lid-controller
+# TODO 開けている途中に閉じろと言われた時にすぐ閉じるようにする
+# 現状では開き切ってから閉じる
 
 import asyncio
 import bluetooth
@@ -6,20 +8,6 @@ import aioble
 import time
 from machine import Pin
 
-# Bluetooth設定の定数
-BLE_CONFIG = {
-    "SERVICE_UUID": bluetooth.UUID("00a8a81d-4125-410e-a5c3-62615319bcbd"),
-    "CONTROL_CHAR_UUID": bluetooth.UUID("46898fe4-4b87-47c5-833f-6b9df8ca3b13"),
-    "DEVICE_NAME": "BT-lid-controller",
-    "ADVERTISE_INTERVAL": 100
-}
-
-# コマンド定義
-COMMANDS = {
-    "LID_CLOSE": b"\x02",  # LIDを閉じる
-    "LID_OPEN": b"\x01",   # LIDを開く
-    "COMPLETE": b"\x01"    # 完了通知（closeのみ）
-}
 
 class MotorController:
     """ステッピングモーター制御クラス"""
@@ -71,32 +59,63 @@ class MotorController:
 
 class BLELidController:
     """Bluetooth LID制御サーバー"""
-    
+
+    # Bluetooth設定の定数
+    BLE_CONFIG = {
+        "SERVICE_UUID": bluetooth.UUID("ac6dd643-a32e-42fb-836d-8130790d9ab4"),
+        "CONTROL_CHAR_UUID": bluetooth.UUID("74779bc7-1e28-4cb1-8dd7-3a3f2a9259ab"),
+        "RESPONSE_CHAR_UUID": bluetooth.UUID("82bdb1a9-4ffd-4a97-8b5f-af7e84655133"),
+        "DEVICE_NAME": "BT-lid-controller",
+        "ADVERTISE_INTERVAL": 100,
+    }
+
+    # コマンド定義
+    COMMANDS = {
+        "LID_CLOSE": b"\x02",  # LIDを閉じる
+        "LID_OPEN": b"\x01",  # LIDを開く
+        "COMPLETE": b"\x01",  # 完了通知（closeのみ）
+    }
+
     def __init__(self):
         self.led = Pin("LED", Pin.OUT)
         self.motor = MotorController()
         self.service = None
-        self.char = None
-        
+        self.control_char = None
+        self.response_char = None
+
     async def setup(self):
-        self.service = aioble.Service(BLE_CONFIG["SERVICE_UUID"])
-        self.char = aioble.Characteristic(
+        # 初期化中を知らせるためにLEDを点灯
+        self.led.on()
+
+        # serviceの生成
+        self.service = aioble.Service(__class__.BLE_CONFIG["SERVICE_UUID"])
+
+        # characteristicの生成
+        self.control_char = aioble.Characteristic(
             self.service,
-            BLE_CONFIG["CONTROL_CHAR_UUID"],
+            __class__.BLE_CONFIG["CONTROL_CHAR_UUID"],
             read=True,
             write=True,
             write_no_response=True,
             capture=True,
-            notify=True
         )
+        self.response_char = aioble.Characteristic(
+            self.service,
+            __class__.BLE_CONFIG["RESPONSE_CHAR_UUID"],
+            read=True,
+            notify=True,
+        )
+
+        # サービスを登録
         aioble.register_services(self.service)
+
+        # 初期化終了を知らせるためにLEDを消灯
         self.led.off()
-    
+
     async def start_advertising(self):
         connection = await aioble.advertise(
-            BLE_CONFIG["ADVERTISE_INTERVAL"],
-            name=BLE_CONFIG["DEVICE_NAME"],
-            services=[BLE_CONFIG["SERVICE_UUID"]],
+            __class__.BLE_CONFIG["ADVERTISE_INTERVAL"],
+            name=__class__.BLE_CONFIG["DEVICE_NAME"],
         )
         print("Connected to central")
         return connection
@@ -108,50 +127,53 @@ class BLELidController:
             command: 受信したコマンド
             connection: BLE接続オブジェクト
         """
-        if command == COMMANDS["LID_CLOSE"]:
+        if command == __class__.COMMANDS["LID_CLOSE"]:
             print("Closing lid...")
             # LIDを閉じる（時計回り）
             self.motor.rotate(turns=self.motor.DEFAULT_TURNS, clockwise=True)
             # close完了時のみ通知
             print("Sending close completion notification...")
-            await self.char.notify(connection, COMMANDS["COMPLETE"])
+            await self.response_char.notify(connection, __class__.COMMANDS["COMPLETE"])
             print("Close notification sent")
-            
-        elif command == COMMANDS["LID_OPEN"]:
+
+        elif command == __class__.COMMANDS["LID_OPEN"]:
             print("Opening lid...")
             # LIDを開く（反時計回り）
             self.motor.rotate(turns=self.motor.DEFAULT_TURNS, clockwise=False)
             print("Open operation completed")
-            
+
         else:
             print(f"Unknown command: {command}")
-    
+
     async def run(self):
         await self.setup()
-        connection = await self.start_advertising()
-        
-        while connection.is_connected():
-            try:
-                written = await self.char.written()
-                if written is None:
-                    continue
-                    
-                data = written[1]
-                
+
+        while True:
+            connection = await self.start_advertising()
+            print("接続されました")
+
+            while connection.is_connected():
                 try:
-                    # LID制御を実行
-                    await self.handle_lid_command(data, connection)
-                finally:
-                    self.motor.cleanup()
-                    
-            except Exception as e:
-                print(f"Error in operation: {e}")
-        
-        print("Disconnected from Central")
+                    _, data = await self.control_char.written(timeout_ms=1000)
+
+                    try:
+                        # LID制御を実行
+                        await self.handle_lid_command(data, connection)
+                    finally:
+                        self.motor.cleanup()
+                except asyncio.TimeoutError:
+                    pass
+                except Exception as e:
+                    print(f"Error in operation: {e}")
+
+            print("Disconnected from Central")
 
 async def main():
     controller = BLELidController()
     await controller.run()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("===中断しました===")

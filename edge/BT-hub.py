@@ -128,13 +128,13 @@ class ResponsableDeviceManager(ControllableDeviceManager):
 
 class LidControllerManager(ResponsableDeviceManager):
     def __init__(self):
-        service_id = const("00a8a81d-4125-410e-a5c3-62615319bcbd")
+        service_id = const("ac6dd643-a32e-42fb-836d-8130790d9ab4")
         super().__init__(
             name=const("BT-lid-controller"),
             control_service_id=service_id,
-            control_char_id=const("46898fe4-4b87-47c5-833f-6b9df8ca3b13"),
+            control_char_id=const("74779bc7-1e28-4cb1-8dd7-3a3f2a9259ab"),
             response_service_id=service_id,
-            response_char_id=const("2273b7b4-fbbd-4904-81f5-d9f6ea4dadc7"),
+            response_char_id=const("82bdb1a9-4ffd-4a97-8b5f-af7e84655133"),
         )
 
     async def listen_response(self):
@@ -161,7 +161,7 @@ class LidControllerManager(ResponsableDeviceManager):
 
 class PaperObserverManager(ResponsableDeviceManager):
     def __init__(self):
-        service_id = const("33d5f2a5-3c6e-4fc0-8f2f-05a76938a929")
+        self.service_id = const("33d5f2a5-3c6e-4fc0-8f2f-05a76938a929")
         super().__init__(
             name="BT-paper-manager",
             control_service_id=service_id,
@@ -181,7 +181,7 @@ class PaperObserverManager(ResponsableDeviceManager):
         await super().control(b"\x01" if start else b"\x02")
         self._log(f"トイレットペーパーの監視を指示しました\n\tstart:{start}")
 
-    async def _listen_response():
+    async def _listen_response(self):
         await super().listen_response()
 
 
