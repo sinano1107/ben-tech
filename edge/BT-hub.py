@@ -38,6 +38,13 @@ class BenTechDeviceManager:
             return
         self.connection = await self.device.connect()
 
+    async def disconnect(self):
+        if self.connection is None:
+            self._log("コネクションを保持していないので接続解除の必要がありません")
+            return
+        await self.connection.disconnect()
+        self._log("接続を解除しました")
+
     async def get_service(self, id):
         if self.connection is None:
             self._log("接続されていません")
@@ -161,7 +168,6 @@ async def connect():
     if paper_observer is not None:
         paper_observer = await paper_observer.connect(timeout_ms=timeout)
 
-
 def is_detection_started():
     """
     人の検知が開始されたかどうかを返す
@@ -186,6 +192,10 @@ def is_detection_ended():
         MOCKVAR_is_detection_started = False
         return True
     return False
+
+
+async def disconnect():
+    lid_controller_manager.disconnect()
 
 
 async def main():
@@ -216,4 +226,9 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("===中断しました===")
+    finally:
+        asyncio.run(disconnect())
