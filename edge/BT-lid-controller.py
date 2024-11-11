@@ -1,16 +1,10 @@
+# BT-lid-controller
+
 import asyncio
 import bluetooth
 import aioble
 import time
 from machine import Pin
-
-# モーターのピン定義
-MOTOR_PINS = {
-    "IN1": 16,
-    "IN2": 17,
-    "IN3": 18,
-    "IN4": 19
-}
 
 # Bluetooth設定の定数
 BLE_CONFIG = {
@@ -29,7 +23,15 @@ COMMANDS = {
 
 class MotorController:
     """ステッピングモーター制御クラス"""
-    
+
+    # モーターのピン定義
+    MOTOR_PINS = {
+        "IN1": 16,
+        "IN2": 17,
+        "IN3": 18,
+        "IN4": 19,
+    }
+
     SEQUENCE = [
         [1, 0, 0, 0],
         [1, 1, 0, 0],
@@ -40,29 +42,29 @@ class MotorController:
         [0, 0, 0, 1],
         [1, 0, 0, 1]
     ]
-    
+
     STEPS_PER_ROTATION = 512
     DEFAULT_DELAY = 0.001
     DEFAULT_TURNS = 4  # デフォルトの回転数
-    
+
     def __init__(self):
         self.pins = [
-            Pin(MOTOR_PINS["IN1"], Pin.OUT),
-            Pin(MOTOR_PINS["IN2"], Pin.OUT),
-            Pin(MOTOR_PINS["IN3"], Pin.OUT),
-            Pin(MOTOR_PINS["IN4"], Pin.OUT)
+            Pin(__class__.MOTOR_PINS["IN1"], Pin.OUT),
+            Pin(__class__.MOTOR_PINS["IN2"], Pin.OUT),
+            Pin(__class__.MOTOR_PINS["IN3"], Pin.OUT),
+            Pin(__class__.MOTOR_PINS["IN4"], Pin.OUT),
         ]
-    
+
     def rotate(self, turns, clockwise=True, delay=DEFAULT_DELAY):
         steps = int(self.STEPS_PER_ROTATION * turns)
         sequence = self.SEQUENCE if clockwise else self.SEQUENCE[::-1]
-        
+
         for _ in range(steps):
             for step in sequence:
                 for pin, value in zip(self.pins, step):
                     pin.value(value)
                 time.sleep(delay)
-    
+
     def cleanup(self):
         for pin in self.pins:
             pin.value(0)
