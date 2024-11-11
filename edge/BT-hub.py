@@ -97,7 +97,7 @@ class ControllableDeviceManager(BenTechDeviceManager):
         await char.write(value)
 
 
-class ResponsableDeviceManager(ControllableDeviceManager):
+class ResponsiveDeviceManager(ControllableDeviceManager):
     def __init__(
         self,
         name,
@@ -126,7 +126,7 @@ class ResponsableDeviceManager(ControllableDeviceManager):
         callback(data)
 
 
-class LidControllerManager(ResponsableDeviceManager):
+class LidControllerManager(ResponsiveDeviceManager):
     def __init__(self):
         service_id = const("ac6dd643-a32e-42fb-836d-8130790d9ab4")
         super().__init__(
@@ -159,7 +159,7 @@ class LidControllerManager(ResponsableDeviceManager):
         self._log(f"蓋の操作を指示しました\n\topen:{open}")
 
 
-class PaperObserverManager(ResponsableDeviceManager):
+class PaperObserverManager(ResponsiveDeviceManager):
     def __init__(self):
         self.service_id = const("33d5f2a5-3c6e-4fc0-8f2f-05a76938a929")
         super().__init__(

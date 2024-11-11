@@ -4,9 +4,9 @@
 
 import asyncio
 import bluetooth
-import aioble
 import time
 from machine import Pin
+from common import BenTechResponsiveDeviceServer
 
 
 class MotorController:
@@ -57,17 +57,9 @@ class MotorController:
         for pin in self.pins:
             pin.value(0)
 
-class BLELidController:
-    """Bluetooth LID制御サーバー"""
 
-    # Bluetooth設定の定数
-    BLE_CONFIG = {
-        "SERVICE_UUID": bluetooth.UUID("ac6dd643-a32e-42fb-836d-8130790d9ab4"),
-        "CONTROL_CHAR_UUID": bluetooth.UUID("74779bc7-1e28-4cb1-8dd7-3a3f2a9259ab"),
-        "RESPONSE_CHAR_UUID": bluetooth.UUID("82bdb1a9-4ffd-4a97-8b5f-af7e84655133"),
-        "DEVICE_NAME": "BT-lid-controller",
-        "ADVERTISE_INTERVAL": 100,
-    }
+class BenTechLidController(BenTechResponsiveDeviceServer):
+    """Bentech 蓋開閉機"""
 
     # コマンド定義
     COMMANDS = {
@@ -77,99 +69,34 @@ class BLELidController:
     }
 
     def __init__(self):
-        self.led = Pin("LED", Pin.OUT)
+        super().__init__(
+            name="BT-lid-controller",
+            service_id=bluetooth.UUID("ac6dd643-a32e-42fb-836d-8130790d9ab4"),
+            control_char_id=bluetooth.UUID("74779bc7-1e28-4cb1-8dd7-3a3f2a9259ab"),
+            response_char_id=bluetooth.UUID("82bdb1a9-4ffd-4a97-8b5f-af7e84655133"),
+        )
         self.motor = MotorController()
-        self.service = None
-        self.control_char = None
-        self.response_char = None
 
-    async def setup(self):
-        # 初期化中を知らせるためにLEDを点灯
-        self.led.on()
-
-        # serviceの生成
-        self.service = aioble.Service(__class__.BLE_CONFIG["SERVICE_UUID"])
-
-        # characteristicの生成
-        self.control_char = aioble.Characteristic(
-            self.service,
-            __class__.BLE_CONFIG["CONTROL_CHAR_UUID"],
-            read=True,
-            write=True,
-            write_no_response=True,
-            capture=True,
-        )
-        self.response_char = aioble.Characteristic(
-            self.service,
-            __class__.BLE_CONFIG["RESPONSE_CHAR_UUID"],
-            read=True,
-            notify=True,
-        )
-
-        # サービスを登録
-        aioble.register_services(self.service)
-
-        # 初期化終了を知らせるためにLEDを消灯
-        self.led.off()
-
-    async def start_advertising(self):
-        connection = await aioble.advertise(
-            __class__.BLE_CONFIG["ADVERTISE_INTERVAL"],
-            name=__class__.BLE_CONFIG["DEVICE_NAME"],
-        )
-        print("Connected to central")
-        return connection
-
-    async def handle_lid_command(self, command, connection):
-        """
-        LIDの開閉制御
-        Args:
-            command: 受信したコマンド
-            connection: BLE接続オブジェクト
-        """
+    async def _handle_control(self, command):
         if command == __class__.COMMANDS["LID_CLOSE"]:
             print("Closing lid...")
             # LIDを閉じる（時計回り）
             self.motor.rotate(turns=self.motor.DEFAULT_TURNS, clockwise=True)
             # close完了時のみ通知
             print("Sending close completion notification...")
-            await self.response_char.notify(connection, __class__.COMMANDS["COMPLETE"])
+            await self._notify_response(__class__.COMMANDS["COMPLETE"])
             print("Close notification sent")
-
         elif command == __class__.COMMANDS["LID_OPEN"]:
             print("Opening lid...")
             # LIDを開く（反時計回り）
             self.motor.rotate(turns=self.motor.DEFAULT_TURNS, clockwise=False)
             print("Open operation completed")
-
         else:
             print(f"Unknown command: {command}")
 
-    async def run(self):
-        await self.setup()
-
-        while True:
-            connection = await self.start_advertising()
-            print("接続されました")
-
-            while connection.is_connected():
-                try:
-                    _, data = await self.control_char.written(timeout_ms=1000)
-
-                    try:
-                        # LID制御を実行
-                        await self.handle_lid_command(data, connection)
-                    finally:
-                        self.motor.cleanup()
-                except asyncio.TimeoutError:
-                    pass
-                except Exception as e:
-                    print(f"Error in operation: {e}")
-
-            print("Disconnected from Central")
 
 async def main():
-    controller = BLELidController()
+    controller = BenTechLidController()
     await controller.run()
 
 if __name__ == "__main__":
