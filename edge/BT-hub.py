@@ -88,11 +88,11 @@ class DeodorantManager(ControllableDeviceManager):
     def __init__(self):
         super().__init__(
             name=const("BT-deodorant"),
-            control_service_id=const("0b4878fb-2967-4a36-9c48-291dcca5bd1f"),
-            control_char_id=const("8a34e943-55d4-4d69-a542-80a8867dac28"),
+            control_service_id=const("cb1786f9-3211-410a-941b-269ee08c47ad"),
+            control_char_id=const("a13e8dd4-0046-4c9b-b320-b0fba7a2f651"),
         )
 
-    async def flush(self):
+    async def spray(self):
         await self.control(b"\x01")
         self._log("消臭を指示しました")
 
@@ -201,8 +201,12 @@ async def main():
                 paper_observer_manager.stop_observe(),
             )
 
-            # 蓋を閉じたら水を流す
-            await auto_flusher_manager.flush()
+            await asyncio.gather(
+                # 水を流す
+                auto_flusher_manager.flush(),
+                # 消臭する
+                deodorant_manager.spray(),
+            )
 
         await asyncio.sleep(0.1)
 
