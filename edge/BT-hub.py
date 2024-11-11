@@ -34,9 +34,17 @@ class BenTechDeviceManager:
 
     async def connect(self):
         if self.device is None:
-            self._log("deviceを保持していません")
+            self._log("[connect] deviceを保持していません")
             return
         self.connection = await self.device.connect()
+        self._log("接続完了")
+
+    async def disconnect(self):
+        if self.connection is None:
+            self._log("[disconnect] 接続されていません")
+            return
+        await self.connection.disconnect()
+        self._log("接続解除完了")
 
     async def disconnect(self):
         if self.connection is None:
@@ -74,24 +82,47 @@ class BenTechDeviceManager:
         print(f"[{self.name}] {msg}")
 
 
-class LidControllerManager(BenTechDeviceManager):
-    def __init__(self):
-        super().__init__("BT-lid-controller")
-        self.service_id = const("00a8a81d-4125-410e-a5c3-62615319bcbd")
-        self.listen_control_char_id = const("46898fe4-4b87-47c5-833f-6b9df8ca3b13")
-        self.notify_response_char_id = const("2273b7b4-fbbd-4904-81f5-d9f6ea4dadc7")
+class ResponsableDeviceManager(BenTechDeviceManager):
+    def __init__(self, name, response_service_id, response_char_id):
+        super().__init__(name)
+        self.response_service_id = response_service_id
+        self.response_char_id = response_char_id
 
-    async def listen_response(self):
+    async def listen_response(
+        self,
+        callback=lambda data: print(
+            f"レスポンスを受け取りましたがコールバックが設定されていません\n\tdata:{data}"
+        ),
+    ):
         char = await self.get_characteristic(
-            self.service_id, self.notify_response_char_id
+            self.response_service_id, self.response_char_id
         )
         if char is None:
+            self._log("charactaristicが不明のためresponseを待てません")
             return
         data = await char.notified()
-        if data == b"\x01":
-            print("蓋を閉じる事を完了したようです")
-        else:
-            print("Unknown Command Received")
+        callback(data)
+
+
+class LidControllerManager(ResponsableDeviceManager):
+    def __init__(self):
+        self.service_id = const("00a8a81d-4125-410e-a5c3-62615319bcbd")
+        self.listen_control_char_id = const("46898fe4-4b87-47c5-833f-6b9df8ca3b13")
+        super().__init__(
+            name=const("BT-lid-controller"),
+            response_service_id=self.service_id,
+            response_char_id=const("2273b7b4-fbbd-4904-81f5-d9f6ea4dadc7"),
+        )
+
+    async def listen_response(self):
+
+        def callback(data):
+            if data == b"\x01":
+                self._log("蓋を閉じる事を完了したようです")
+            else:
+                self._log("Unknown Command Received")
+
+        await super().listen_response(callback)
 
     async def open(self):
         await self._control(True)
@@ -107,6 +138,16 @@ class LidControllerManager(BenTechDeviceManager):
         if char is None:
             return
         await char.write(b"\x01" if open else b"\x02")
+        self._log(f"蓋の操作を指示しました open:{open}")
+
+
+"""
+class PaperObserverManager(BenTEchDeviceManager):
+    def __init__(self):
+        super().__init__("BT-paper-manager")
+        self.service_id = const("33d5f2a5-3c6e-4fc0-8f2f-05a76938a929")
+        self.listen_control_char_id
+"""
 
 
 lid_controller_manager = LidControllerManager()
@@ -167,6 +208,7 @@ async def connect():
         deodorant_connection = await deodorant.connect(timeout_ms=timeout)
     if paper_observer is not None:
         paper_observer = await paper_observer.connect(timeout_ms=timeout)
+
 
 def is_detection_started():
     """
