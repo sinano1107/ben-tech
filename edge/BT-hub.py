@@ -11,8 +11,6 @@ MOCKVAR_is_detection_started = False
 
 led = Pin("LED", Pin.OUT)
 
-deodorant = None
-
 
 class LidControllerManager(ResponsiveDeviceManager):
     def __init__(self):
@@ -86,23 +84,31 @@ class AutoFlusherManager(ControllableDeviceManager):
         self._log("水を流すように指示しました")
 
 
+class DeodorantManager(ControllableDeviceManager):
+    def __init__(self):
+        super().__init__(
+            name=const("BT-deodorant"),
+            control_service_id=const("0b4878fb-2967-4a36-9c48-291dcca5bd1f"),
+            control_char_id=const("8a34e943-55d4-4d69-a542-80a8867dac28"),
+        )
+
+    async def flush(self):
+        await self.control(b"\x01")
+        self._log("消臭を指示しました")
+
+
 lid_controller_manager = LidControllerManager()
 paper_observer_manager = PaperObserverManager()
 auto_flusher_manager = AutoFlusherManager()
-
-deodorant_name = "BT-deodorant"
-
-deodorant_connection = None
+deodorant_manager = DeodorantManager()
 
 
 async def scan():
-    global deodorant, deodorant_name
-
     def calk_should_break():
         return (
             lid_controller_manager.is_having_device()
             and auto_flusher_manager.is_having_device()
-            and deodorant is not None
+            and deodorant_manager.is_having_device()
             and paper_observer_manager.is_having_device()
         )
 
@@ -115,8 +121,7 @@ async def scan():
             lid_controller_manager.is_this_device_your_charge(result)
             paper_observer_manager.is_this_device_your_charge(result)
             auto_flusher_manager.is_this_device_your_charge(result)
-            if deodorant is None and result.name() == deodorant_name:
-                deodorant = result.device
+            deodorant_manager.is_this_device_your_charge(result)
 
             if calk_should_break():
                 print("各種デバイスを発見したのでスキャンを終了")
@@ -132,9 +137,8 @@ async def connect():
         lid_controller_manager.connect(),
         paper_observer_manager.connect(),
         auto_flusher_manager.connect(),
+        deodorant_manager.connect(),
     )
-    if deodorant is not None:
-        deodorant_connection = await deodorant.connect()
 
 
 def is_detection_started():
