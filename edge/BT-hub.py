@@ -12,7 +12,6 @@ led = Pin("LED", Pin.OUT)
 
 auto_flusher = None
 deodorant = None
-paper_observer = None
 
 
 class BenTechDeviceManager:
@@ -157,40 +156,55 @@ class LidControllerManager(ResponsableDeviceManager):
 
     async def _control(self, open):
         await super().control(b"\x01" if open else b"\x02")
-        self._log(f"蓋の操作を指示しました open:{open}")
+        self._log(f"蓋の操作を指示しました\n\topen:{open}")
 
 
-"""
 class PaperObserverManager(ResponsableDeviceManager):
     def __init__(self):
-        super().__init__("BT-paper-manager")
-        self.service_id = const("33d5f2a5-3c6e-4fc0-8f2f-05a76938a929")
-        self.listen_control_char_id
-"""
+        service_id = const("33d5f2a5-3c6e-4fc0-8f2f-05a76938a929")
+        super().__init__(
+            name="BT-paper-manager",
+            control_service_id=service_id,
+            control_char_id=const("e20af759-61d6-4406-819a-de6748d4e243"),
+            response_service_id=service_id,
+            response_char_id=const("5ff44fbd-11ef-46db-b3d5-794ee0f88449"),
+        )
+
+    async def start_observe(self):
+        await self._control(True)
+
+    async def stop_observe(self):
+        await self._control(False)
+        await self._listen_response()
+
+    async def _control(self, start):
+        await super().control(b"\x01" if start else b"\x02")
+        self._log(f"トイレットペーパーの監視を指示しました\n\tstart:{start}")
+
+    async def _listen_response():
+        await super().listen_response()
 
 
 lid_controller_manager = LidControllerManager()
+paper_observer_manager = PaperObserverManager()
 
 auto_flusher_name = "BT-auto-flusher"
 deodorant_name = "BT-deodorant"
-paper_observer_name = "BT-paper-observer"
 
 auto_flusher_connection = None
 deodorant_connection = None
-paper_observer_connection = None
 
 
 async def scan():
     global auto_flusher, auto_flusher_name
     global deodorant, deodorant_name
-    global paper_observer, paper_observer_name
 
     def calk_should_break():
         return (
             lid_controller_manager.is_having_device()
             and auto_flusher is not None
             and deodorant is not None
-            and paper_observer is not None
+            and paper_observer_manager.is_having_device()
         )
 
     # 最も高いデューティ サイクルで 5 秒間近くのデバイスをアクティブ スキャン
@@ -200,12 +214,11 @@ async def scan():
         async for result in scanner:
             # 各種デバイスを発見したら変数に代入
             lid_controller_manager.is_this_device_your_charge(result)
+            paper_observer_manager.is_this_device_your_charge(result)
             if auto_flusher is None and result.name() == auto_flusher_name:
                 auto_flusher = result.device
             elif deodorant is None and result.name() == deodorant_name:
                 deodorant = result.device
-            elif paper_observer is None and result.name() == paper_observer_name:
-                paper_observer = result.device
 
             if calk_should_break():
                 print("各種デバイスを発見したのでスキャンを終了")
@@ -217,16 +230,14 @@ async def scan():
 async def connect():
     global auto_flusher, auto_flusher_connection
     global deodorant, deodorant_connection
-    global paper_observer, paper_observer_connection
 
-    # TODO 接続を並列で実行する
-    await lid_controller_manager.connect()
+    await asyncio.gather(
+        lid_controller_manager.connect(), paper_observer_manager.connect()
+    )
     if auto_flusher is not None:
-        auto_flusher_connection = await auto_flusher.connect(timeout_ms=timeout)
+        auto_flusher_connection = await auto_flusher.connect()
     if deodorant is not None:
-        deodorant_connection = await deodorant.connect(timeout_ms=timeout)
-    if paper_observer is not None:
-        paper_observer = await paper_observer.connect(timeout_ms=timeout)
+        deodorant_connection = await deodorant.connect()
 
 
 def is_detection_started():
@@ -272,16 +283,22 @@ async def main():
         if is_detection_started():
             print("新しい動き検知を開始しました")
 
-            # 蓋開閉機へ開けるように指示
-            await lid_controller_manager.open()
-
-            # TODO ペーパー測定機へ測定を開始するように指示する
+            await asyncio.gather(
+                # 蓋開閉機へ開けるように指示
+                lid_controller_manager.open(),
+                # ペーパー測定機へ測定を開始するように指示
+                paper_observer_manager.start_observe(),
+            )
 
         if is_detection_ended():
             print("検知終了")
 
-            # 蓋開閉機へ閉じるように指示
-            await lid_controller_manager.close()
+            await asyncio.gather(
+                # 蓋開閉機へ閉じるように指示
+                lid_controller_manager.close(),
+                # ペーパー測定機へ測定を終了するように指示
+                paper_observer_manager.stop_observe(),
+            )
 
         await asyncio.sleep(0.1)
 
