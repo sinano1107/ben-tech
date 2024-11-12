@@ -1,6 +1,16 @@
 "use client";
+import { useEffect, useState } from "react";
 
 export default function Home() {
+  return (
+    <>
+      <BLE />
+      <Notification />
+    </>
+  );
+}
+
+const BLE = () => {
   let server: BluetoothRemoteGATTServer | undefined;
   let service: BluetoothRemoteGATTService | undefined;
   let listen_control_char: BluetoothRemoteGATTCharacteristic | undefined;
@@ -11,8 +21,11 @@ export default function Home() {
   const connect = async () => {
     try {
       const device = await navigator.bluetooth.requestDevice({
+        /*
         filters: [{ services: ["00a8a81d-4125-410e-a5c3-62615319bcbd"] }],
         optionalServices: ["00a8a81d-4125-410e-a5c3-62615319bcbd"],
+        */
+        acceptAllDevices: true,
       });
       console.log("選択されたデバイス:", device.name);
 
@@ -69,4 +82,49 @@ export default function Home() {
       <button onClick={() => set_led(false)}>LEDオフ</button>
     </div>
   );
-}
+};
+
+const Notification = () => {
+  const [subscription, setSubscription] = useState<PushSubscription | null>(
+    null
+  );
+  useEffect(() => {
+    if ("serviceWorker" in navigator && "PushManager" in window) {
+      registerServiceWorker();
+    }
+  }, []);
+  async function registerServiceWorker() {
+    const registration = await navigator.serviceWorker.register("/sw.js", {
+      //provide the route to the service worker
+      scope: "/",
+      updateViaCache: "none",
+    });
+    const sub = await registration.pushManager.getSubscription();
+    if (sub) {
+      setSubscription(sub); //This would be sent to a server
+    } else {
+      const pushSubscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY, // Your VAPID public key
+      });
+      setSubscription(pushSubscription);
+    }
+  } //Create a function to test the notification
+  const handleSendNotification = async () => {
+    await fetch("/api/sendNotification", {
+      method: "POST",
+      body: JSON.stringify({
+        message: "Your timer has completed!",
+        subscription: subscription, // This ideally, should not be included in the body. It should have already been saved on the server
+      }),
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+  return (
+    <div>
+      {" "}
+      <h1>My PWA with Push Notifications</h1>{" "}
+      <button onClick={handleSendNotification}>Notify Me!</button>{" "}
+    </div>
+  );
+};
