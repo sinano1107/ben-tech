@@ -91,8 +91,23 @@ class BenTechStreamableDeviceServer(BenTechResponsiveDeviceServer):
             response_char_id=response_char_id,
         )
         self.stream_char = aioble.Characteristic(
-            self.service, stream_char_id, write=True, capture=True
+            self.service, stream_char_id, write=True, notify=True, capture=True
         )
+
+    async def _send_stream(self, msg):
+        byte_array = msg.encode("utf-8")
+        length = len(byte_array)
+
+        count = (length // 20) + 1
+        print(f"[_send_stream] {msg} を {count} 回に分けて送信することを伝えます")
+        self.stream_char.notify(self.connection, count.to_bytes(4, "big"))
+
+        for i in range(count):
+            start = i * 20
+            end = length if i == (count - 1) else (start + 20)
+            packet = byte_array[start:end]
+            self.stream_char.notify(self.connection, packet)
+        print("[_send_stream] 送信終了")
 
     async def _listen_stream(self):
         _, data = await self.stream_char.written()

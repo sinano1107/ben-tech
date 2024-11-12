@@ -48,7 +48,9 @@ class PIRMotionDetector:
 
 
 class Hub(BenTechStreamableDeviceServer):
-    COMMANDS = {"CONNECT_WIFI": b"\x01", "WIFI_CONNECT_COMPLETED": b"1"}
+    COMMANDS = {"CONNECT_WIFI": b"\x01", "REQUEST_INFO": b"\x02"}
+
+    RESPONSES = {"WIFI_CONNECT_COMPLETED": b"1"}
 
     def __init__(self):
         super().__init__(
@@ -64,6 +66,7 @@ class Hub(BenTechStreamableDeviceServer):
         self.auto_flusher_manager = AutoFlusherManager()
         self.deodorant_manager = DeodorantManager()
         self.motion_detector = PIRMotionDetector()
+        self.subscription = None
 
     ###### Web Appとの通信関連 ######
     async def _listen_wifi_data(self):
@@ -83,7 +86,14 @@ class Hub(BenTechStreamableDeviceServer):
         print("WiFiルーターと接続完了")
 
         # 完了したことを伝える
-        await self._notify_response(__class__.COMMANDS["WIFI_CONNECT_COMPLETED"])
+        await self._notify_response(__class__.RESPONSES["WIFI_CONNECT_COMPLETED"])
+
+    async def _stream_info(self):
+        data = {
+            "WIFI_CONNECTED": self.wlan.isconnected(),
+            "SUBSCRIPTION": self.subscription,
+        }
+        await self._send_stream(json.dumps(data))
 
     async def _handle_control(self, command):
         if command == __class__.COMMANDS["CONNECT_WIFI"]:
@@ -92,6 +102,9 @@ class Hub(BenTechStreamableDeviceServer):
 
             print("WiFiへ接続します")
             await self._connect_wifi(ssid, password)
+        elif command == __class__.COMMANDS["REQUEST_INFO"]:
+            print("自身の情報を提供します")
+            await self._stream_info()
         else:
             print(f"Unknown Command Received: {command}")
 
@@ -176,8 +189,9 @@ class Hub(BenTechStreamableDeviceServer):
             await asyncio.sleep(0.1)
 
     async def _communicate_web_app(self):
-        await self._wait_to_connect()
-        await self._listen_control()
+        while True:
+            await self._wait_to_connect()
+            await self._listen_control()
 
     #############################
 
