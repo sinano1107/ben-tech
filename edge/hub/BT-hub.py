@@ -4,10 +4,11 @@ import asyncio
 import aioble
 import bluetooth
 import network
+import json
 from machine import Pin
 from micropython import const
 from ..common import (
-    BenTechResponsiveDeviceServer,
+    BenTechStreamableDeviceServer,
 )  # pico側では同階層、開発側では違う階層
 from device_managers import (
     LidControllerManager,
@@ -27,10 +28,8 @@ auto_flusher_manager = AutoFlusherManager()
 deodorant_manager = DeodorantManager()
 
 
-class Hub(BenTechResponsiveDeviceServer):
-    COMMANDS = {
-        "CONNECT_WIFI": b"\x01",
-    }
+class Hub(BenTechStreamableDeviceServer):
+    COMMANDS = {"CONNECT_WIFI": b"\x01", "WIFI_CONNECT_COMPLETED": b"1"}
 
     def __init__(self):
         super().__init__(
@@ -38,11 +37,7 @@ class Hub(BenTechResponsiveDeviceServer):
             service_id=bluetooth.UUID("e295c051-7ac4-4d72-b7ea-3e71e47e15a9"),
             control_char_id=bluetooth.UUID("4576af67-ecc6-434e-8ce7-52c6ab1d5f04"),
             response_char_id=bluetooth.UUID("d95426b1-2cb4-4115-bd4b-32ff24232864"),
-        )
-
-        # WiFi接続で利用するデータの通信などに使用するcharacteristic
-        self.socker_char = aioble.Characteristic(
-            self.service, bluetooth.UUID("feb2f5aa-ec75-46ef-8da6-2da832175d8e")
+            stream_char_id=bluetooth.UUID("feb2f5aa-ec75-46ef-8da6-2da832175d8e"),
         )
 
         self.wlan = network.WLAN(network.STA_IF)
@@ -50,18 +45,31 @@ class Hub(BenTechResponsiveDeviceServer):
     async def _handle_control(self, command):
         if command == __class__.COMMANDS["CONNECT_WIFI"]:
             print("接続用のデータを受け付けます")
-            print("WiFiへ接続します")
-            await self._connect_wifi()
+            ssid, password = await self._listen_wifi_data()
 
-    async def _connect_wifi(self):
+            print("WiFiへ接続します")
+            await self._connect_wifi(ssid, password)
+        else:
+            print(f"Unknown Command Received: {command}")
+
+    async def _listen_wifi_data(self):
+        msg = await self._listen_stream()
+        wifi_data = json.loads(msg)
+        return wifi_data["ssid"], wifi_data["password"]
+
+    async def _connect_wifi(self, ssid, password):
         self.wlan.active(True)
-        self.wlan.connect("aterm-7d0c0e-g", "27f45ff27ec76")
+
+        self.wlan.connect(ssid, password)
 
         while not self.wlan.isconnected():
             print("WiFiルーターと接続中")
             await asyncio.sleep(1)
 
         print("WiFiルーターと接続完了")
+
+        # 完了したことを伝える
+        await self._notify_response(__class__.COMMANDS["WIFI_CONNECT_COMPLETED"])
 
 
 async def scan():

@@ -76,5 +76,38 @@ class BenTechResponsiveDeviceServer(BenTechDeviceServer):
         )
 
     async def _notify_response(self, data):
-        await self.response_char.notify(self.connection, data)
+        self.response_char.notify(self.connection, data)
         print(f"レスポンスを通知しました\n\t{data}")
+
+
+class BenTechStreamableDeviceServer(BenTechResponsiveDeviceServer):
+    def __init__(
+        self, name, service_id, control_char_id, response_char_id, stream_char_id
+    ):
+        super().__init__(
+            name=name,
+            service_id=service_id,
+            control_char_id=control_char_id,
+            response_char_id=response_char_id,
+        )
+        self.stream_char = aioble.Characteristic(
+            self.service, stream_char_id, write=True, capture=True
+        )
+
+    async def _listen_stream(self):
+        _, data = await self.stream_char.written()
+        length = int.from_bytes(data)
+        print(
+            f"[_receive_socker_communication] これから{length}個のデータが送られてきます"
+        )
+
+        joinned_data = bytes()
+
+        for _ in range(length):
+            _, data = await self.stream_char.written()
+            print(data)
+            joinned_data += data
+
+        msg = joinned_data.decode("utf-8")
+        print(f"[_receive_socker_communication] メッセージを受け取りました\n\t{msg}")
+        return msg

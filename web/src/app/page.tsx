@@ -13,32 +13,37 @@ export default function Home() {
 const BLE = () => {
   let server: BluetoothRemoteGATTServer | undefined;
   let service: BluetoothRemoteGATTService | undefined;
-  let listen_control_char: BluetoothRemoteGATTCharacteristic | undefined;
-  let notify_on_button_pressed_char:
-    | BluetoothRemoteGATTCharacteristic
-    | undefined;
+  let control_char: BluetoothRemoteGATTCharacteristic | undefined;
+  let response_char: BluetoothRemoteGATTCharacteristic | undefined;
+  let socker_char: BluetoothRemoteGATTCharacteristic | undefined;
 
   const connect = async () => {
     try {
       const device = await navigator.bluetooth.requestDevice({
-        /*
-        filters: [{ services: ["00a8a81d-4125-410e-a5c3-62615319bcbd"] }],
-        optionalServices: ["00a8a81d-4125-410e-a5c3-62615319bcbd"],
-        */
-        acceptAllDevices: true,
+        filters: [
+          {
+            name: "BT-hub",
+          },
+        ],
+        optionalServices: ["e295c051-7ac4-4d72-b7ea-3e71e47e15a9"],
       });
       console.log("選択されたデバイス:", device.name);
 
       server = await device.gatt?.connect();
       service = await server?.getPrimaryService(
-        "00a8a81d-4125-410e-a5c3-62615319bcbd"
+        "e295c051-7ac4-4d72-b7ea-3e71e47e15a9"
       );
 
-      notify_on_button_pressed_char = await service?.getCharacteristic(
-        "2273b7b4-fbbd-4904-81f5-d9f6ea4dadc7"
+      [control_char, socker_char] = await Promise.all([
+        service?.getCharacteristic("4576af67-ecc6-434e-8ce7-52c6ab1d5f04"),
+        service?.getCharacteristic("feb2f5aa-ec75-46ef-8da6-2da832175d8e"),
+      ]);
+
+      response_char = await service?.getCharacteristic(
+        "d95426b1-2cb4-4115-bd4b-32ff24232864"
       );
-      await notify_on_button_pressed_char?.startNotifications();
-      notify_on_button_pressed_char?.addEventListener(
+      await response_char?.startNotifications();
+      response_char?.addEventListener(
         "characteristicvaluechanged",
         handleNotifications
       );
@@ -52,16 +57,35 @@ const BLE = () => {
     console.log("接続解除済み");
   };
 
-  const set_led = async (_value: boolean) => {
-    if (listen_control_char === undefined) {
-      listen_control_char = await service?.getCharacteristic(
-        "46898fe4-4b87-47c5-833f-6b9df8ca3b13"
-      );
+  function uint8ToArrayBuffer(n: number, length = 1) {
+    const view = new DataView(new ArrayBuffer(length));
+    view.setUint8(0, n);
+    return view.buffer;
+  }
+
+  const sendTextByStream = async (_value: string) => {
+    const utf8Encoder = new TextEncoder();
+    const msgArray = utf8Encoder.encode(_value);
+
+    await control_char?.writeValueWithResponse(uint8ToArrayBuffer(1));
+
+    const length = Number(msgArray.length / 20) + 1;
+    await socker_char?.writeValueWithResponse(uint8ToArrayBuffer(length));
+
+    for (let i = 0; i < length; i++) {
+      const start = i * 20;
+      const end = i == length - 1 ? -1 : start + 20;
+      const data = msgArray.slice(start, end);
+      await socker_char?.writeValueWithResponse(data);
     }
-    const value = new Uint8Array(1);
-    value[0] = _value ? 1 : 0;
-    await listen_control_char?.writeValueWithoutResponse(value);
-    console.log("送信完了");
+  };
+
+  const sendWiFiData = async () => {
+    const data = {
+      ssid: localStorage.getItem("WIFI_SSID"),
+      password: localStorage.getItem("WIFI_PASSWORD"),
+    };
+    await sendTextByStream(JSON.stringify(data));
   };
 
   const handleNotifications = (event: Event) => {
@@ -78,8 +102,7 @@ const BLE = () => {
       <h1>ben-tech</h1>
       <button onClick={connect}>接続</button>
       <button onClick={disconnect}>接続解除</button>
-      <button onClick={() => set_led(true)}>LEDオン</button>
-      <button onClick={() => set_led(false)}>LEDオフ</button>
+      <button onClick={sendWiFiData}>ソケットで送信</button>
     </div>
   );
 };
