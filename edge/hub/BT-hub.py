@@ -2,7 +2,13 @@
 
 import asyncio
 import aioble
+import bluetooth
+import network
 from machine import Pin
+from micropython import const
+from ..common import (
+    BenTechResponsiveDeviceServer,
+)  # pico側では同階層、開発側では違う階層
 from device_managers import (
     LidControllerManager,
     PaperObserverManager,
@@ -19,6 +25,43 @@ lid_controller_manager = LidControllerManager()
 paper_observer_manager = PaperObserverManager()
 auto_flusher_manager = AutoFlusherManager()
 deodorant_manager = DeodorantManager()
+
+
+class Hub(BenTechResponsiveDeviceServer):
+    COMMANDS = {
+        "CONNECT_WIFI": b"\x01",
+    }
+
+    def __init__(self):
+        super().__init__(
+            name=const("BT-hub"),
+            service_id=bluetooth.UUID("e295c051-7ac4-4d72-b7ea-3e71e47e15a9"),
+            control_char_id=bluetooth.UUID("4576af67-ecc6-434e-8ce7-52c6ab1d5f04"),
+            response_char_id=bluetooth.UUID("d95426b1-2cb4-4115-bd4b-32ff24232864"),
+        )
+
+        # WiFi接続で利用するデータの通信などに使用するcharacteristic
+        self.socker_char = aioble.Characteristic(
+            self.service, bluetooth.UUID("feb2f5aa-ec75-46ef-8da6-2da832175d8e")
+        )
+
+        self.wlan = network.WLAN(network.STA_IF)
+
+    async def _handle_control(self, command):
+        if command == __class__.COMMANDS["CONNECT_WIFI"]:
+            print("接続用のデータを受け付けます")
+            print("WiFiへ接続します")
+            await self._connect_wifi()
+
+    async def _connect_wifi(self):
+        self.wlan.active(True)
+        self.wlan.connect("aterm-7d0c0e-g", "27f45ff27ec76")
+
+        while not self.wlan.isconnected():
+            print("WiFiルーターと接続中")
+            await asyncio.sleep(1)
+
+        print("WiFiルーターと接続完了")
 
 
 async def scan():
@@ -131,7 +174,9 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        hub = Hub()
+        asyncio.run(hub.run())
+        # asyncio.run(main())
     except KeyboardInterrupt:
         print("===中断しました===")
     finally:
