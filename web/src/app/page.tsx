@@ -120,9 +120,42 @@ class HubController {
     await this.requestInfo();
   }
 }
+
+class NotificationManager {
+  private subscription: PushSubscription | null = null;
+
+  async registerServiceWorker() {
+    if (!("serviceWorker" in navigator && "PushManager" in window)) {
+      alert("このブラウザは通知に対応していないようです");
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.register("/sw.js", {
+      scope: "/",
+      updateViaCache: "none",
+    });
+
+    // 既存のsubscription
+    this.subscription = await registration.pushManager.getSubscription();
+    if (this.subscription === null) {
+      this.subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+      });
+    }
+  }
+
+  getSubscription() {
+    return this.subscription;
+  }
+}
+
 const hubController = new HubController();
+const notificationManager = new NotificationManager();
 
 export default function Component() {
+  const [isNotificationDataInitialized, setIsNotificationDataInitialized] =
+    useState(false);
   const [isWifiConnected, setIsWifiConnected] = useState(false);
   const [isWifiDialogOpen, setIsWifiDialogOpen] = useState(false);
   const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
@@ -172,6 +205,14 @@ export default function Component() {
       setIsScanning(false);
     }, 2000);
   }, [bleDevices]);
+
+  useEffect(() => {
+    const registerServiceWorker = async () => {
+      await notificationManager.registerServiceWorker();
+      setIsNotificationDataInitialized(true);
+    };
+    registerServiceWorker();
+  }, []);
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -262,9 +303,9 @@ export default function Component() {
               size="icon"
               aria-label="Hubデバイスに接続"
               onClick={handleHubConnect}
-              disabled={isHubConnecting}
+              disabled={!isNotificationDataInitialized || isHubConnecting}
             >
-              {isHubConnecting ? (
+              {!isNotificationDataInitialized || isHubConnecting ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <Link className="h-5 w-5" />
