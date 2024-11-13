@@ -1,216 +1,294 @@
 "use client";
-import { useEffect, useState } from "react";
 
-export default function Home() {
+import { useState, useCallback, useEffect } from "react";
+import {
+  Wifi,
+  WifiOff,
+  Bell,
+  BellOff,
+  Loader2,
+  Home,
+  List,
+  Clock,
+  Link,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+export default function Component() {
+  const [isWifiConnected, setIsWifiConnected] = useState(false);
+  const [isWifiDialogOpen, setIsWifiDialogOpen] = useState(false);
+  const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
+  const [ssid, setSsid] = useState("");
+  const [password, setPassword] = useState("");
+  const [isWifiLoading, setIsWifiLoading] = useState(false);
+  const [isNotificationLoading, setIsNotificationLoading] = useState(false);
+  const [currentScreen, setCurrentScreen] = useState("home");
+  const [isHubConnected, setIsHubConnected] = useState(false);
+  const [isHubConnecting, setIsHubConnecting] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [bleDevices, setBleDevices] = useState([
+    { name: "デバイス1", status: "接続中" },
+    { name: "デバイス2", status: "未接続" },
+    { name: "デバイス3", status: "ペアリング済み" },
+  ]);
+
+  const handleWifiConnect = useCallback(() => {
+    setIsWifiLoading(true);
+    setTimeout(() => {
+      setIsWifiConnected(true);
+      setIsWifiDialogOpen(false);
+      setIsWifiLoading(false);
+    }, 2000);
+  }, []);
+
+  const handleHubConnect = useCallback(() => {
+    setIsHubConnecting(true);
+    setTimeout(() => {
+      setIsHubConnected(true);
+      setIsHubConnecting(false);
+    }, 3000);
+  }, []);
+
+  const handleScanDevices = useCallback(() => {
+    setIsScanning(true);
+    setTimeout(() => {
+      setBleDevices([
+        ...bleDevices,
+        { name: `新しいデバイス${bleDevices.length + 1}`, status: "未接続" },
+      ]);
+      setIsScanning(false);
+    }, 2000);
+  }, [bleDevices]);
+
+  const renderScreen = () => {
+    switch (currentScreen) {
+      case "home":
+        return (
+          <div className="space-y-4">
+            {[
+              { title: "最後の接続", time: "2時間前" },
+              { title: "データ同期", time: "昨日" },
+              { title: "設定変更", time: "先週" },
+              { title: "初回接続", time: "先月" },
+              { title: "アプリインストール", time: "2ヶ月前" },
+            ].map((item, index) => (
+              <Card
+                key={index}
+                className="cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">{item.title}</h2>
+                    <p className="text-sm text-gray-500">{item.time}</p>
+                  </div>
+                  <Clock className="h-5 w-5 text-gray-400" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        );
+      case "devices":
+        return (
+          <div className="space-y-4">
+            {!isHubConnected && (
+              <Alert variant="default">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Hubとの接続が必要です</AlertTitle>
+                <AlertDescription>
+                  デバイスを表示するには、まずHubとの接続を完了してください。
+                  画面右上のボタンからHubに接続できます。
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">BLEデバイス接続状況</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleScanDevices}
+                disabled={isScanning || !isHubConnected}
+              >
+                {isScanning ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                {isScanning ? "スキャン中..." : "再スキャン"}
+              </Button>
+            </div>
+            {bleDevices.map((device, index) => (
+              <Card
+                key={index}
+                className="cursor-pointer hover:bg-gray-50 transition-colors"
+              >
+                <CardContent className="flex items-center justify-between p-4">
+                  <div>
+                    <h3 className="text-lg font-semibold">{device.name}</h3>
+                    <p className="text-sm text-gray-500">{device.status}</p>
+                  </div>
+                  <Link className="h-5 w-5 text-gray-400" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
-    <>
-      <BLE />
-      <Notification />
-    </>
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* Header */}
+      <header className="bg-white shadow-sm p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold">BenTech</h1>
+        <div className="flex space-x-2">
+          {!isHubConnected ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Hubデバイスに接続"
+              onClick={handleHubConnect}
+              disabled={isHubConnecting}
+            >
+              {isHubConnecting ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Link className="h-5 w-5" />
+              )}
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="WiFi接続状況"
+                onClick={() => setIsWifiDialogOpen(true)}
+                disabled={isWifiLoading}
+              >
+                {isWifiLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : isWifiConnected ? (
+                  <Wifi className="h-5 w-5" />
+                ) : (
+                  <WifiOff className="h-5 w-5" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="通知設定"
+                onClick={() => {
+                  setIsNotificationLoading(true);
+                  setTimeout(() => {
+                    setIsNotificationEnabled(!isNotificationEnabled);
+                    setIsNotificationLoading(false);
+                  }, 1000);
+                }}
+                disabled={isNotificationLoading}
+              >
+                {isNotificationLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : isNotificationEnabled ? (
+                  <Bell className="h-5 w-5" />
+                ) : (
+                  <BellOff className="h-5 w-5" />
+                )}
+              </Button>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* Body - Content */}
+      <main className="flex-1 overflow-auto p-4">{renderScreen()}</main>
+
+      {/* Navigation */}
+      <nav className="bg-white shadow-sm p-4 flex justify-around">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="ホーム"
+          onClick={() => setCurrentScreen("home")}
+        >
+          <Home
+            className={`h-6 w-6 ${
+              currentScreen === "home" ? "text-primary" : "text-gray-500"
+            }`}
+          />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="デバイス"
+          onClick={() => setCurrentScreen("devices")}
+        >
+          <List
+            className={`h-6 w-6 ${
+              currentScreen === "devices" ? "text-primary" : "text-gray-500"
+            }`}
+          />
+        </Button>
+      </nav>
+
+      {/* WiFi Connection Dialog */}
+      <Dialog open={isWifiDialogOpen} onOpenChange={setIsWifiDialogOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-lg">
+          <DialogHeader>
+            <DialogTitle className="text-center">WiFi接続</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 px-6">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="ssid" className="text-right">
+                SSID
+              </Label>
+              <Input
+                id="ssid"
+                value={ssid}
+                onChange={(e) => setSsid(e.target.value)}
+                className="col-span-3 rounded-md"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="password" className="text-right">
+                パスワード
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="col-span-3 rounded-md"
+              />
+            </div>
+          </div>
+          <DialogFooter className="px-6 pb-6">
+            <Button
+              onClick={handleWifiConnect}
+              disabled={isWifiLoading}
+              className="w-full rounded-md"
+            >
+              {isWifiLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              ) : null}
+              {isWifiLoading ? "接続中..." : "接続"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
-
-const BLE = () => {
-  let server: BluetoothRemoteGATTServer | undefined;
-  let service: BluetoothRemoteGATTService | undefined;
-  let control_char: BluetoothRemoteGATTCharacteristic | undefined;
-  let response_char: BluetoothRemoteGATTCharacteristic | undefined;
-  let stream_char: BluetoothRemoteGATTCharacteristic | undefined;
-
-  const connect = async () => {
-    try {
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [
-          {
-            name: "BT-hub",
-          },
-        ],
-        optionalServices: ["e295c051-7ac4-4d72-b7ea-3e71e47e15a9"],
-      });
-      console.log("選択されたデバイス:", device.name);
-
-      server = await device.gatt?.connect();
-      service = await server?.getPrimaryService(
-        "e295c051-7ac4-4d72-b7ea-3e71e47e15a9"
-      );
-
-      [control_char, response_char, stream_char] = await Promise.all([
-        service?.getCharacteristic("4576af67-ecc6-434e-8ce7-52c6ab1d5f04"),
-        service?.getCharacteristic("d95426b1-2cb4-4115-bd4b-32ff24232864"),
-        service?.getCharacteristic("feb2f5aa-ec75-46ef-8da6-2da832175d8e"),
-      ]);
-
-      await response_char?.startNotifications();
-      response_char?.addEventListener(
-        "characteristicvaluechanged",
-        handleNotifications
-      );
-    } catch (error) {
-      console.log("デバイスの選択に失敗しました:", error);
-    }
-  };
-
-  const disconnect = async () => {
-    server?.disconnect();
-    console.log("接続解除済み");
-  };
-
-  function concatArrayBuffers(buffer1: ArrayBuffer, buffer2: ArrayBuffer) {
-    // 2つのArrayBufferのサイズを合計した新しいバッファを作成
-    const newBuffer = new ArrayBuffer(buffer1.byteLength + buffer2.byteLength);
-    const newUint8Array = new Uint8Array(newBuffer);
-
-    // 最初のArrayBufferの内容をコピー
-    newUint8Array.set(new Uint8Array(buffer1), 0);
-
-    // 2つ目のArrayBufferの内容をコピー
-    newUint8Array.set(new Uint8Array(buffer2), buffer1.byteLength);
-
-    return newBuffer;
-  }
-
-  const listenStream = async () => {
-    let count = 0;
-    let length: number | undefined = undefined;
-    let joinned_buffer = new ArrayBuffer(0);
-
-    const handleNotifications = (event: Event) => {
-      // @ts-expect-error このような実装しか見つからなかった
-      const data = event.target.value.buffer;
-      if (count === 0) {
-        length = arrayBufferToUint32(data);
-        console.log(`これから ${length} 個のデータが送られてきます`);
-      } else {
-        console.log(`${count}個目`, data);
-        joinned_buffer = concatArrayBuffers(joinned_buffer, data);
-      }
-      count += 1;
-    };
-
-    stream_char?.addEventListener(
-      "characteristicvaluechanged",
-      handleNotifications
-    );
-
-    await stream_char?.startNotifications();
-    await control_char?.writeValueWithResponse(uint8ToArrayBuffer(2));
-
-    await new Promise((resolve) => {
-      const intervalId = setInterval(() => {
-        if (length !== undefined && count >= length + 1) {
-          clearInterval(intervalId);
-          resolve(null);
-        }
-      }, 100);
-    });
-
-    return arrayBufferToString(joinned_buffer);
-  };
-
-  const requestInfo = async () => {
-    const response = await listenStream();
-    console.log(response);
-    console.log(JSON.parse(response));
-  };
-
-  function uint8ToArrayBuffer(n: number, length = 1) {
-    const view = new DataView(new ArrayBuffer(length));
-    view.setUint8(0, n);
-    return view.buffer;
-  }
-
-  const sendTextByStream = async (_value: string) => {
-    const utf8Encoder = new TextEncoder();
-    const msgArray = utf8Encoder.encode(_value);
-
-    await control_char?.writeValueWithResponse(uint8ToArrayBuffer(1));
-
-    const length = Number(msgArray.length / 20) + 1;
-    await stream_char?.writeValueWithResponse(uint8ToArrayBuffer(length));
-
-    for (let i = 0; i < length; i++) {
-      const start = i * 20;
-      const end = i == length - 1 ? -1 : start + 20;
-      const data = msgArray.slice(start, end);
-      await stream_char?.writeValueWithResponse(data);
-    }
-  };
-
-  const sendWiFiData = async () => {
-    const data = {
-      ssid: localStorage.getItem("WIFI_SSID"),
-      password: localStorage.getItem("WIFI_PASSWORD"),
-    };
-    await sendTextByStream(JSON.stringify(data));
-  };
-
-  const arrayBufferToUint32 = (buffer: ArrayBuffer) => {
-    var dv = new DataView(buffer, 0);
-    return dv.getInt32(0, false);
-  };
-
-  const arrayBufferToString = (buffer: ArrayBuffer) => {
-    return new TextDecoder().decode(buffer);
-  };
-
-  const handleNotifications = (event: Event) => {
-    // @ts-expect-error このような実装しか見つからなかった
-    const value = arrayBufferToString(event.target.value.buffer);
-    console.log("通知を受け取りました", value, event);
-  };
-
-  return (
-    <div>
-      <h1>ben-tech</h1>
-      <button onClick={connect}>接続</button>
-      <button onClick={disconnect}>接続解除</button>
-      <button onClick={sendWiFiData}>WiFiデータを送信</button>
-      <button onClick={requestInfo}>情報をリクエスト</button>
-    </div>
-  );
-};
-
-const Notification = () => {
-  const [subscription, setSubscription] = useState<PushSubscription | null>(
-    null
-  );
-  useEffect(() => {
-    if ("serviceWorker" in navigator && "PushManager" in window) {
-      registerServiceWorker();
-    }
-  }, []);
-  async function registerServiceWorker() {
-    const registration = await navigator.serviceWorker.register("/sw.js", {
-      //provide the route to the service worker
-      scope: "/",
-      updateViaCache: "none",
-    });
-    const sub = await registration.pushManager.getSubscription();
-    if (sub) {
-      setSubscription(sub); //This would be sent to a server
-    } else {
-      const pushSubscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY, // Your VAPID public key
-      });
-      setSubscription(pushSubscription);
-    }
-  } //Create a function to test the notification
-  const handleSendNotification = async () => {
-    await fetch("/api/sendNotification", {
-      method: "POST",
-      body: JSON.stringify({
-        message: "Your timer has completed!",
-        subscription: subscription, // This ideally, should not be included in the body. It should have already been saved on the server
-      }),
-      headers: { "Content-Type": "application/json" },
-    });
-  };
-  return (
-    <div>
-      {" "}
-      <h1>My PWA with Push Notifications</h1>{" "}
-      <button onClick={handleSendNotification}>Notify Me!</button>{" "}
-    </div>
-  );
-};
