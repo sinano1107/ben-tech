@@ -26,12 +26,70 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  arrayBufferToString,
+  arrayBufferToUint32,
+  concatArrayBuffers,
+  uint8ToArrayBuffer,
+} from "@/lib/utils";
 
 class HubController {
-  hubServiceId = "e295c051-7ac4-4d72-b7ea-3e71e47e15a9";
-  controlCharId = "4576af67-ecc6-434e-8ce7-52c6ab1d5f04";
-  responseCharId = "d95426b1-2cb4-4115-bd4b-32ff24232864";
-  streamCharId = "feb2f5aa-ec75-46ef-8da6-2da832175d8e";
+  private hubServiceId = "e295c051-7ac4-4d72-b7ea-3e71e47e15a9";
+  private controlCharId = "4576af67-ecc6-434e-8ce7-52c6ab1d5f04";
+  private responseCharId = "d95426b1-2cb4-4115-bd4b-32ff24232864";
+  private streamCharId = "feb2f5aa-ec75-46ef-8da6-2da832175d8e";
+  private controlChar: BluetoothRemoteGATTCharacteristic | undefined;
+  private responseChar: BluetoothRemoteGATTCharacteristic | undefined;
+  private streamChar: BluetoothRemoteGATTCharacteristic | undefined;
+
+  private async requestAndListenStream(command: number) {
+    if (this.streamChar === undefined) {
+      throw Error("streamCharがありません");
+    } else if (this.controlChar === undefined) {
+      throw new Error("controlCharがありません");
+    }
+
+    let count = 0;
+    let length: number | undefined = undefined;
+    let joinned_buffer = new ArrayBuffer(0);
+
+    const handleNotifications = (event: Event) => {
+      // @ts-expect-error このような実装しか見つからなかった
+      const data = event.target.value.buffer;
+      if (count === 0) {
+        length = arrayBufferToUint32(data);
+        console.log(`これから ${length} 個のデータが送られてきます`);
+      } else {
+        console.log(`${count}個目`, data);
+        joinned_buffer = concatArrayBuffers(joinned_buffer, data);
+      }
+      count += 1;
+    };
+
+    this.streamChar.addEventListener(
+      "characteristicvaluechanged",
+      handleNotifications
+    );
+
+    await this.streamChar.startNotifications();
+    await this.controlChar.writeValueWithResponse(uint8ToArrayBuffer(command));
+
+    await new Promise((resolve) => {
+      const intervalId = setInterval(() => {
+        if (length !== undefined && count >= length + 1) {
+          clearInterval(intervalId);
+          resolve(null);
+        }
+      }, 100);
+    });
+
+    return arrayBufferToString(joinned_buffer);
+  }
+
+  private async requestInfo() {
+    const response = await this.requestAndListenStream(2);
+    console.log("info", JSON.parse(response));
+  }
 
   async connect() {
     // hubをユーザーに選択してもらう
@@ -48,12 +106,18 @@ class HubController {
     const connection = await hub.gatt?.connect();
     const service = await connection?.getPrimaryService(this.hubServiceId);
 
+    if (service === undefined) {
+      throw Error("serviceの取得に失敗");
+    }
+
     // それぞれのキャラクタリスティックを取得
-    const [controlChar, responseChar, streamChar] = await Promise.all([
-      service?.getCharacteristic(this.controlCharId),
-      service?.getCharacteristic(this.responseCharId),
-      service?.getCharacteristic(this.streamCharId),
+    [this.controlChar, this.responseChar, this.streamChar] = await Promise.all([
+      service.getCharacteristic(this.controlCharId),
+      service.getCharacteristic(this.responseCharId),
+      service.getCharacteristic(this.streamCharId),
     ]);
+
+    await this.requestInfo();
   }
 }
 const hubController = new HubController();
@@ -92,7 +156,7 @@ export default function Component() {
       await hubController.connect();
       setIsHubConnected(true);
     } catch (error) {
-      console.log("Hubとの接続に失敗しました:", error);
+      console.error("Hubとの接続に失敗しました:", error);
     } finally {
       setIsHubConnecting(false);
     }
