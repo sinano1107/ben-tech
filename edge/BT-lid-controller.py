@@ -28,7 +28,7 @@ class MotorController:
         [0, 0, 1, 0],
         [0, 0, 1, 1],
         [0, 0, 0, 1],
-        [1, 0, 0, 1]
+        [1, 0, 0, 1],
     ]
 
     STEPS_PER_ROTATION = 512
@@ -84,7 +84,7 @@ class BenTechLidController(BenTechResponsiveDeviceServer):
             self.motor.rotate(turns=self.motor.DEFAULT_TURNS, clockwise=True)
             # close完了時のみ通知
             print("Sending close completion notification...")
-            await self._notify_response(__class__.COMMANDS["COMPLETE"])
+            self._notify_response(__class__.COMMANDS["COMPLETE"])
             print("Close notification sent")
         elif command == __class__.COMMANDS["LID_OPEN"]:
             print("Opening lid...")
@@ -98,6 +98,7 @@ class BenTechLidController(BenTechResponsiveDeviceServer):
 async def main():
     controller = BenTechLidController()
     await controller.run()
+
 
 if __name__ == "__main__":
     try:
