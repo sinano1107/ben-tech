@@ -46,6 +46,7 @@ class BenTechDeviceServer:
                 await self._handle_control(command)
             except asyncio.TimeoutError:
                 pass
+        self.connection = None
         print("接続が切断されたため操作の受付を終了しました")
 
     async def _handle_control(self, command):
@@ -56,9 +57,10 @@ class BenTechDeviceServer:
     async def run(self):
         aioble.register_services(self.service)
 
-        await self._wait_to_connect()
+        while True:
+            await self._wait_to_connect()
 
-        await self._listen_control()
+            await self._listen_control()
 
 
 class BenTechResponsiveDeviceServer(BenTechDeviceServer):
@@ -75,7 +77,7 @@ class BenTechResponsiveDeviceServer(BenTechDeviceServer):
             notify=True,
         )
 
-    async def _notify_response(self, data):
+    def _notify_response(self, data):
         self.response_char.notify(self.connection, data)
         print(f"レスポンスを通知しました\n\t{data}")
 

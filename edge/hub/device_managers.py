@@ -13,52 +13,49 @@ class LidControllerManager(ResponsiveDeviceManager):
             response_char_id=const("82bdb1a9-4ffd-4a97-8b5f-af7e84655133"),
         )
 
-    async def listen_response(self):
-
-        def callback(data):
-            if data == b"\x01":
-                self._log("蓋を閉じる事を完了したようです")
-            else:
-                self._log("Unknown Command Received")
-
-        await super().listen_response(callback)
-
     async def open(self):
-        await self._control(True)
+        await self.control(b"\x01")
 
     async def close(self):
-        await self._control(False)
-        await self.listen_response()
+        def callback(data):
+            if data == b"\x01":
+                return True
+            else:
+                return False
 
-    async def _control(self, open):
-        await super().control(b"\x01" if open else b"\x02")
-        self._log(f"蓋の操作を指示しました\n\topen:{open}")
+        if self.connection == None:
+            self._log("接続されていないのでpassします")
+            return
+        result = await self.control_with_response(b"\x02", callback)
+        self._log(
+            "蓋を閉めることに成功したようです"
+            if result
+            else "error 蓋を閉められませんでした"
+        )
 
 
 class PaperObserverManager(ResponsiveDeviceManager):
     def __init__(self):
-        self.service_id = const("33d5f2a5-3c6e-4fc0-8f2f-05a76938a929")
+        self.service_id = const("0698d1ab-9144-496a-9878-9f6027e17ef9")
         super().__init__(
-            name="BT-paper-manager",
+            name="BT-paper-observer",
             control_service_id=self.service_id,
-            control_char_id=const("e20af759-61d6-4406-819a-de6748d4e243"),
+            control_char_id=const("dcdbd8b8-0ad3-45b2-867a-1e449fd14646"),
             response_service_id=self.service_id,
-            response_char_id=const("5ff44fbd-11ef-46db-b3d5-794ee0f88449"),
+            response_char_id=const("49fb080c-8d01-4996-b318-27186d78430a"),
         )
 
     async def start_observe(self):
-        await self._control(True)
+        await self.control(b"\x01")
+        self._log("トイレットペーパーの監視をスタートさせました")
 
     async def stop_observe(self):
-        await self._control(False)
-        await self._listen_response()
+        self._log("トイレットペーパーの監視をストップします")
 
-    async def _control(self, start):
-        await super().control(b"\x01" if start else b"\x02")
-        self._log(f"トイレットペーパーの監視を指示しました\n\tstart:{start}")
+        def callback(data):
+            return int.from_bytes(data)
 
-    async def _listen_response(self):
-        await super().listen_response()
+        return await self.control_with_response(b"\x02", callback)
 
 
 class AutoFlusherManager(ControllableDeviceManager):

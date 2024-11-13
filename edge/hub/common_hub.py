@@ -1,5 +1,6 @@
 from micropython import const
 import bluetooth
+import asyncio
 
 
 class BenTechDeviceManager:
@@ -59,6 +60,8 @@ class BenTechDeviceManager:
         )
         if char_is_nothing:
             service = await self.get_service(service_id)
+            if service == None:
+                raise Exception("serviceがNoneです。service_idを確認してください")
             char = await service.characteristic(bluetooth.UUID(char_id))
             if service_is_nothing:
                 self.characteristics[service_id] = {}
@@ -98,17 +101,33 @@ class ResponsiveDeviceManager(ControllableDeviceManager):
         self.response_service_id = response_service_id
         self.response_char_id = response_char_id
 
-    async def listen_response(
-        self,
-        callback=lambda data: print(
+    async def control_with_response(self, value, callback):
+        retv = None
+        listen_response_task = None
+        control_task = asyncio.create_task(self.control(value))
+
+        async def listen_response():
+            nonlocal retv
+
+            char = await self.get_characteristic(
+                self.response_service_id, self.response_char_id
+            )
+            if char is None:
+                self._log("charactaristicが不明のためresponseを待てません")
+                control_task.cancel()
+                listen_response_task.cancel()
+            data = await char.notified()
+            retv = callback(data)
+
+        listen_response_task = asyncio.create_task(listen_response())
+        await listen_response_task
+        await control_task
+
+        print(retv)
+        return retv
+
+    async def response_callback(self):
+        print(
             f"レスポンスを受け取りましたがコールバックが設定されていません\n\tdata:{data}"
-        ),
-    ):
-        char = await self.get_characteristic(
-            self.response_service_id, self.response_char_id
         )
-        if char is None:
-            self._log("charactaristicが不明のためresponseを待てません")
-            return
-        data = await char.notified()
-        callback(data)
+        return None

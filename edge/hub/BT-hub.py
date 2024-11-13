@@ -172,12 +172,13 @@ class Hub(BenTechStreamableDeviceServer):
             if self.motion_detector.is_detection_ended():
                 print("検知終了")
 
-                await asyncio.gather(
+                _, used_roll_count = await asyncio.gather(
                     # 蓋開閉機へ閉じるように指示
                     self.lid_controller_manager.close(),
                     # ペーパー測定機へ測定を終了するように指示
                     self.paper_observer_manager.stop_observe(),
                 )
+                print(f"ペーパー消費量: {used_roll_count}")
 
                 await asyncio.gather(
                     # 水を流す
