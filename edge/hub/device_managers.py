@@ -15,6 +15,7 @@ class LidControllerManager(ResponsiveDeviceManager):
 
     async def open(self):
         await self.control(b"\x01")
+        self._log("蓋を開けるように指示しました")
 
     async def close(self):
         def callback(data):
@@ -26,6 +27,7 @@ class LidControllerManager(ResponsiveDeviceManager):
         if self.connection == None:
             self._log("接続されていないのでpassします")
             return
+        self._log("蓋を閉めるように指示します")
         result = await self.control_with_response(b"\x02", callback)
         self._log(
             "蓋を閉めることに成功したようです"
@@ -55,7 +57,10 @@ class PaperObserverManager(ResponsiveDeviceManager):
         def callback(data):
             return int.from_bytes(data)
 
-        return await self.control_with_response(b"\x02", callback)
+        response = await self.control_with_response(b"\x02", callback)
+        if response is None:
+            return "不明"
+        return response
 
 
 class AutoFlusherManager(ControllableDeviceManager):
@@ -80,5 +85,8 @@ class DeodorantManager(ControllableDeviceManager):
         )
 
     async def spray(self):
+        if self.connection is None:
+            self._log("接続していないのでスプレーしません")
+            return
         await self.control(b"\x01")
         self._log("消臭を指示しました")

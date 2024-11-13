@@ -115,7 +115,7 @@ class ResponsiveDeviceManager(ControllableDeviceManager):
             if char is None:
                 self._log("charactaristicが不明のためresponseを待てません")
                 control_task.cancel()
-                listen_response_task.cancel()
+                return
             data = await char.notified()
             retv = callback(data)
 
@@ -123,7 +123,6 @@ class ResponsiveDeviceManager(ControllableDeviceManager):
         await listen_response_task
         await control_task
 
-        print(retv)
         return retv
 
     async def response_callback(self):

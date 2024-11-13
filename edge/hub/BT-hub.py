@@ -5,7 +5,6 @@ import aioble
 import bluetooth
 import network
 import json
-from machine import Pin
 from micropython import const
 from ..common import (
     BenTechStreamableDeviceServer,
@@ -137,12 +136,19 @@ class Hub(BenTechStreamableDeviceServer):
                 # print(result, result.name(), result.rssi, result.services())
 
     async def _connect(self):
+        # gatherはダメだった
+        """
         await asyncio.gather(
             self.lid_controller_manager.connect(),
             self.paper_observer_manager.connect(),
             self.auto_flusher_manager.connect(),
             self.deodorant_manager.connect(),
         )
+        """
+        await self.lid_controller_manager.connect(),
+        await self.paper_observer_manager.connect(),
+        await self.auto_flusher_manager.connect(),
+        await self.deodorant_manager.connect(),
 
     async def disconnect(self):
         self.lid_controller_manager.disconnect()
