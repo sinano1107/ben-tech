@@ -27,6 +27,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+const hubServiceId = "e295c051-7ac4-4d72-b7ea-3e71e47e15a9";
+const controlCharId = "4576af67-ecc6-434e-8ce7-52c6ab1d5f04";
+const responseCharId = "d95426b1-2cb4-4115-bd4b-32ff24232864";
+const streamCharId = "feb2f5aa-ec75-46ef-8da6-2da832175d8e";
+
 export default function Component() {
   const [isWifiConnected, setIsWifiConnected] = useState(false);
   const [isWifiDialogOpen, setIsWifiDialogOpen] = useState(false);
@@ -54,12 +59,37 @@ export default function Component() {
     }, 2000);
   }, []);
 
-  const handleHubConnect = useCallback(() => {
+  const handleHubConnect = useCallback(async () => {
     setIsHubConnecting(true);
-    setTimeout(() => {
+
+    try {
+      // hubをユーザーに選択してもらう
+      const hub = await navigator.bluetooth.requestDevice({
+        filters: [
+          {
+            name: "BT-hub",
+          },
+        ],
+        optionalServices: [hubServiceId],
+      });
+
+      // Hubのサービスを取得
+      const connection = await hub.gatt?.connect();
+      const service = await connection?.getPrimaryService(hubServiceId);
+
+      // それぞれのキャラクタリスティックを取得
+      const [controlChar, responseChar, streamChar] = await Promise.all([
+        service?.getCharacteristic(controlCharId),
+        service?.getCharacteristic(responseCharId),
+        service?.getCharacteristic(streamCharId),
+      ]);
+
       setIsHubConnected(true);
+    } catch (error) {
+      console.log("Hubとの接続に失敗しました:", error);
+    } finally {
       setIsHubConnecting(false);
-    }, 3000);
+    }
   }, []);
 
   const handleScanDevices = useCallback(() => {
