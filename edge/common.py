@@ -39,7 +39,7 @@ class BenTechDeviceServer:
         print("接続されました")
 
     async def _listen_control(self):
-        while self.connection.is_connected():
+        while self.connection is not None and self.connection.is_connected():
             try:
                 _, command = await self.control_char.written(timeout_ms=1000)
 
@@ -114,7 +114,7 @@ class BenTechStreamableDeviceServer(BenTechResponsiveDeviceServer):
         print("[_send_stream] 送信終了")
 
     async def _listen_stream(self):
-        while self.connection.is_connected():
+        while self.connection is not None and self.connection.is_connected():
             try:
                 _, data = await self.stream_char.written(timeout_ms=1000)
                 # フラグが立ってない時はブレーク

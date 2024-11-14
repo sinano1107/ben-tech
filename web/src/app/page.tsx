@@ -88,7 +88,73 @@ class HubController {
 
   private async requestInfo() {
     const response = await this.requestAndListenStream(2);
-    console.log("info", JSON.parse(response));
+    const info = JSON.parse(response);
+    console.log("info", info);
+    return info;
+  }
+
+  private async sendTextByStream(text: string) {
+    if (this.controlChar === undefined) {
+      throw Error("controlCharがありません");
+    } else if (this.streamChar === undefined) {
+      throw Error("streamCharがありません");
+    }
+
+    const utf8Encoder = new TextEncoder();
+    const msgArray = utf8Encoder.encode(text);
+
+    await this.controlChar.writeValueWithResponse(uint8ToArrayBuffer(1));
+
+    const length = Number(msgArray.length / 20) + 1;
+    await this.streamChar.writeValueWithResponse(uint8ToArrayBuffer(length));
+
+    for (let i = 0; i < length; i++) {
+      const start = i * 20;
+      const end = i == length - 1 ? -1 : start + 20;
+      const data = msgArray.slice(start, end);
+      await this.streamChar.writeValueWithResponse(data);
+    }
+  }
+
+  async sendWifiData(ssid: string, password: string) {
+    if (this.responseChar === undefined) {
+      throw Error("responseCharがありません");
+    }
+
+    let success: boolean | null = null;
+
+    const handle = async (event: Event) => {
+      // @ts-expect-error
+      const value = arrayBufferToUint32(event.target.value.buffer);
+      success = value === 1;
+
+      await this.responseChar?.stopNotifications();
+      this.responseChar!.removeEventListener(
+        "characteristicvaluechanged",
+        handle
+      );
+    };
+
+    await this.responseChar.startNotifications();
+    this.responseChar.addEventListener("characteristicvaluechanged", handle);
+
+    const data = {
+      ssid,
+      password,
+    };
+    await this.sendTextByStream(JSON.stringify(data));
+
+    while (success === null) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    // localStorageへの書き込み
+    if (success) {
+      localStorage.setItem("WIFI_SSID", ssid);
+      localStorage.setItem("WIFI_PASSWORD", password);
+    }
+
+    return success;
   }
 
   async connect() {
@@ -117,7 +183,19 @@ class HubController {
       service.getCharacteristic(this.streamCharId),
     ]);
 
-    await this.requestInfo();
+    const info = await this.requestInfo();
+    return {
+      wifiConnected: info["WIFI_CONNECTED"],
+      subscripption: info["SUBSCRIPTION"],
+    };
+  }
+
+  async disconnectWifi() {
+    if (this.controlChar === undefined) {
+      throw new Error("controlCharがありません");
+    }
+
+    await this.controlChar.writeValueWithResponse(uint8ToArrayBuffer(3));
   }
 }
 
@@ -173,26 +251,42 @@ export default function Component() {
     { name: "デバイス3", status: "ペアリング済み" },
   ]);
 
-  const handleWifiConnect = useCallback(() => {
-    setIsWifiLoading(true);
-    setTimeout(() => {
-      setIsWifiConnected(true);
-      setIsWifiDialogOpen(false);
-      setIsWifiLoading(false);
-    }, 2000);
-  }, []);
-
   const handleHubConnect = useCallback(async () => {
     setIsHubConnecting(true);
 
     try {
-      await hubController.connect();
+      const info = await hubController.connect();
+      setIsWifiConnected(info.wifiConnected);
       setIsHubConnected(true);
     } catch (error) {
-      console.error("Hubとの接続に失敗しました:", error);
+      console.log("Hubとの接続に失敗しました:", error);
     } finally {
       setIsHubConnecting(false);
     }
+  }, []);
+
+  const handleWifiConnect = useCallback(async () => {
+    if (!ssid || !password) {
+      console.log("ssidもしくはpasswordが空です");
+      return;
+    }
+    setIsWifiLoading(true);
+
+    try {
+      const success = await hubController.sendWifiData(ssid, password);
+      if (!success) throw Error("success = false");
+      setIsWifiConnected(true);
+      setIsWifiDialogOpen(false);
+    } catch (error) {
+      console.error("WiFiとの接続に失敗しました:", error);
+    } finally {
+      setIsWifiLoading(false);
+    }
+  }, [ssid, password]);
+
+  const handleWifiDisconnect = useCallback(async () => {
+    await hubController.disconnectWifi();
+    setIsWifiConnected(false);
   }, []);
 
   const handleScanDevices = useCallback(() => {
@@ -212,6 +306,11 @@ export default function Component() {
       setIsNotificationDataInitialized(true);
     };
     registerServiceWorker();
+  }, []);
+
+  useEffect(() => {
+    setSsid(localStorage.getItem("WIFI_SSID") || "");
+    setPassword(localStorage.getItem("WIFI_PASSWORD") || "");
   }, []);
 
   const renderScreen = () => {
@@ -317,7 +416,11 @@ export default function Component() {
                 variant="ghost"
                 size="icon"
                 aria-label="WiFi接続状況"
-                onClick={() => setIsWifiDialogOpen(true)}
+                onClick={
+                  isWifiConnected
+                    ? handleWifiDisconnect
+                    : () => setIsWifiDialogOpen(true)
+                }
                 disabled={isWifiLoading}
               >
                 {isWifiLoading ? (

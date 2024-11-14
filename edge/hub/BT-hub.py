@@ -47,9 +47,16 @@ class PIRMotionDetector:
 
 
 class Hub(BenTechStreamableDeviceServer):
-    COMMANDS = {"CONNECT_WIFI": b"\x01", "REQUEST_INFO": b"\x02"}
+    COMMANDS = {
+        "CONNECT_WIFI": b"\x01",
+        "REQUEST_INFO": b"\x02",
+        "DISCONNECT_WIFI": b"\x03",
+    }
 
-    RESPONSES = {"WIFI_CONNECT_COMPLETED": b"1"}
+    RESPONSES = {
+        "WIFI_CONNECT_COMPLETED": (1).to_bytes(4, "big"),
+        "WIFI_CONNECT_FAILED": (2).to_bytes(4, "big"),
+    }
 
     def __init__(self):
         super().__init__(
@@ -69,23 +76,37 @@ class Hub(BenTechStreamableDeviceServer):
 
     ###### Web Appとの通信関連 ######
     async def _listen_wifi_data(self):
-        msg = await self._listen_stream()
+        msg = await self.start_listen()
         wifi_data = json.loads(msg)
         return wifi_data["ssid"], wifi_data["password"]
 
     async def _connect_wifi(self, ssid, password):
+        print(ssid, password)
         self.wlan.active(True)
 
         self.wlan.connect(ssid, password)
 
-        while not self.wlan.isconnected():
+        limit_sec = 20
+        count = 0
+
+        while not self.wlan.isconnected() and count <= limit_sec:
             print("WiFiルーターと接続中")
+            count += 1
             await asyncio.sleep(1)
 
-        print("WiFiルーターと接続完了")
+        if count >= limit_sec:
+            print("WiFiルーターと接続失敗")
+            # 失敗したことを伝える
+            self._notify_response(__class__.RESPONSES["WIFI_CONNECT_FAILED"])
+            return
 
+        print("WiFiルーターと接続完了")
         # 完了したことを伝える
-        await self._notify_response(__class__.RESPONSES["WIFI_CONNECT_COMPLETED"])
+        self._notify_response(__class__.RESPONSES["WIFI_CONNECT_COMPLETED"])
+
+    async def _disconnect_wifi(self):
+        self.wlan.disconnect()
+        print("wifiとの接続解除をwlanに指示しました")
 
     async def _stream_info(self):
         data = {
@@ -104,6 +125,8 @@ class Hub(BenTechStreamableDeviceServer):
         elif command == __class__.COMMANDS["REQUEST_INFO"]:
             print("自身の情報を提供します")
             await self._stream_info()
+        elif command == __class__.COMMANDS["DISCONNECT_WIFI"]:
+            await self._disconnect_wifi()
         else:
             print(f"Unknown Command Received: {command}")
 
@@ -196,9 +219,15 @@ class Hub(BenTechStreamableDeviceServer):
             await asyncio.sleep(0.1)
 
     async def _communicate_web_app(self):
+        # BenTechStreamableDeviceServerのrun()を参考
         while True:
             await self._wait_to_connect()
-            await self._listen_control()
+
+            listen_control_task = asyncio.create_task(self._listen_control())
+            listen_stream_task = asyncio.create_task(self._listen_stream())
+
+            await listen_control_task
+            await listen_stream_task
 
     #############################
 
