@@ -93,7 +93,7 @@ class HubController {
     return info;
   }
 
-  private async sendTextByStream(text: string) {
+  private async sendTextByStream(command: number, text: string) {
     if (this.controlChar === undefined) {
       throw Error("controlCharがありません");
     } else if (this.streamChar === undefined) {
@@ -103,7 +103,7 @@ class HubController {
     const utf8Encoder = new TextEncoder();
     const msgArray = utf8Encoder.encode(text);
 
-    await this.controlChar.writeValueWithResponse(uint8ToArrayBuffer(1));
+    await this.controlChar.writeValueWithResponse(uint8ToArrayBuffer(command));
 
     const length = Number(msgArray.length / 20) + 1;
     await this.streamChar.writeValueWithResponse(uint8ToArrayBuffer(length));
@@ -142,7 +142,7 @@ class HubController {
       ssid,
       password,
     };
-    await this.sendTextByStream(JSON.stringify(data));
+    await this.sendTextByStream(1, JSON.stringify(data));
 
     while (success === null) {
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -186,7 +186,7 @@ class HubController {
     const info = await this.requestInfo();
     return {
       wifiConnected: info["WIFI_CONNECTED"],
-      subscripption: info["SUBSCRIPTION"],
+      subscription: info["SUBSCRIPTION"],
     };
   }
 
@@ -196,6 +196,15 @@ class HubController {
     }
 
     await this.controlChar.writeValueWithResponse(uint8ToArrayBuffer(3));
+  }
+
+  async sendSubscription() {
+    console.log("subscriptionを送信します");
+    await this.sendTextByStream(
+      4,
+      JSON.stringify(notificationManager.getSubscription())
+    );
+    console.log("subscription送信完了");
   }
 }
 
@@ -258,6 +267,10 @@ export default function Component() {
       const info = await hubController.connect();
       setIsWifiConnected(info.wifiConnected);
       setIsHubConnected(true);
+      setIsNotificationEnabled(
+        JSON.stringify(notificationManager.getSubscription()) ===
+          info.subscription
+      );
     } catch (error) {
       console.log("Hubとの接続に失敗しました:", error);
     } finally {
@@ -287,6 +300,19 @@ export default function Component() {
   const handleWifiDisconnect = useCallback(async () => {
     await hubController.disconnectWifi();
     setIsWifiConnected(false);
+  }, []);
+
+  const handleNotificationOn = useCallback(async () => {
+    setIsNotificationLoading(true);
+
+    try {
+      await hubController.sendSubscription();
+      setIsNotificationEnabled(true);
+    } catch (error) {
+      console.log("subscriptionの送信に失敗しました", error);
+    } finally {
+      setIsNotificationLoading(false);
+    }
   }, []);
 
   const handleScanDevices = useCallback(() => {
@@ -435,14 +461,8 @@ export default function Component() {
                 variant="ghost"
                 size="icon"
                 aria-label="通知設定"
-                onClick={() => {
-                  setIsNotificationLoading(true);
-                  setTimeout(() => {
-                    setIsNotificationEnabled(!isNotificationEnabled);
-                    setIsNotificationLoading(false);
-                  }, 1000);
-                }}
-                disabled={isNotificationLoading}
+                onClick={handleNotificationOn}
+                disabled={isNotificationLoading || isNotificationEnabled}
               >
                 {isNotificationLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />

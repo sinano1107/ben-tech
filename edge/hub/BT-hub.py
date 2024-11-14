@@ -51,6 +51,7 @@ class Hub(BenTechStreamableDeviceServer):
         "CONNECT_WIFI": b"\x01",
         "REQUEST_INFO": b"\x02",
         "DISCONNECT_WIFI": b"\x03",
+        "SET_SUBSCRIPTION": b"\x04",
     }
 
     RESPONSES = {
@@ -127,6 +128,9 @@ class Hub(BenTechStreamableDeviceServer):
             await self._stream_info()
         elif command == __class__.COMMANDS["DISCONNECT_WIFI"]:
             await self._disconnect_wifi()
+        elif command == __class__.COMMANDS["SET_SUBSCRIPTION"]:
+            self.subscription = await self.start_listen()
+            print(f"subscriptionを設定しました\n\t{self.subscription}")
         else:
             print(f"Unknown Command Received: {command}")
 
