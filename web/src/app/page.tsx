@@ -492,6 +492,7 @@ export default function Component() {
           <div className="space-y-4">
             {history.map((h) => {
               const unchImage = h.type === null ? null : getUnchImage(h.type);
+              const stayingTime = new Date(h.stayingTime * 1000);
 
               return (
                 <Card
@@ -501,8 +502,15 @@ export default function Component() {
                   <CardContent className="flex items-center justify-between p-4">
                     <div>
                       <h2 className="text-lg font-semibold">
-                        {h.usedRollCount}ロール使用しました
+                        滞在時間: {stayingTime.getMinutes()}分
+                        {stayingTime.getSeconds()}秒
                       </h2>
+                      <p className="text-sm text-gray-500">
+                        トイレットペーパー消費量:{" "}
+                        {h.usedRollCount === null
+                          ? "不明"
+                          : h.usedRollCount + "ロール"}
+                      </p>
                       <p className="text-sm text-gray-500">
                         {new Date(h.createdAt.seconds * 1000).toLocaleString()}
                       </p>

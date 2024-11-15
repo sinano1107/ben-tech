@@ -35,14 +35,13 @@ exports.saveHistory = onRequest(async (request, response) => {
 
   const body = request.body;
   const stayingTime = body["stayingTime"];
-  const usedRollCount = body["usedRollCount"];
+  const usedRollCount = body["usedRollCount"] || null;
   const subscription = body["subscription"] || null;
 
-  if (stayingTime === undefined || usedRollCount === undefined) {
+  if (stayingTime === undefined) {
     response.status(400).send(
       `何か値が入ってないよ ${JSON.stringify({
         stayingTime,
-        usedRollCount,
       })}`
     );
     return;

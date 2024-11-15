@@ -58,8 +58,8 @@ class PaperObserverManager(ResponsiveDeviceManager):
             return int.from_bytes(data)
 
         response = await self.control_with_response(b"\x02", callback)
-        if response is None:
-            return "不明"
+        # if response is None:
+        #    return "不明"
         return response
 
 
