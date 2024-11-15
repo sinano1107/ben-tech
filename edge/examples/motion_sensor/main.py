@@ -32,19 +32,19 @@ class PIRMotionDetector:
         self.monitoring = False
         self._monitor_task = None
 
-    async def start_monitoring(self):
-        """監視を開始する"""
-        if not self.monitoring:
-            self.monitoring = True
-            self._monitor_task = asyncio.create_task(self.monitor_presence())
-            print("モニタリングタスクを開始しました")
+    # async def start_monitoring(self):
+    #     """監視を開始する"""
+    #     if not self.monitoring:
+    #         self.monitoring = True
+    #         self._monitor_task = asyncio.create_task(self.monitor_presence())
+    #         print("モニタリングタスクを開始しました")
 
-    async def stop_monitoring(self):
-        """監視を停止する"""
-        self.monitoring = False
-        if self._monitor_task:
-            await self._monitor_task
-            print("モニタリングタスクを停止しました")
+    # async def stop_monitoring(self):
+    #     """監視を停止する"""
+    #     self.monitoring = False
+    #     if self._monitor_task:
+    #         await self._monitor_task
+    #         print("モニタリングタスクを停止しました")
 
     async def monitor_presence(self):
         try:

@@ -7,7 +7,7 @@ import network
 import json
 import urequests
 import utime
-from ..micropython import const
+from micropython import const
 from common import (
     BenTechStreamableDeviceServer,
 )  # pico側では同階層、開発側では違う階層
@@ -17,36 +17,9 @@ from device_managers import (
     AutoFlusherManager,
     DeodorantManager,
 )
-
+from motion_sensor import PIRMotionDetector
 
 MOCKVAR_is_detection_started = False
-
-
-class PIRMotionDetector:
-    def is_detection_started(self):
-        """
-        人の検知が開始されたかどうかを返す
-        モック：ブートセルボタンが押されている間Trueを返す
-        """
-        if rp2.bootsel_button() == 1:
-            global MOCKVAR_is_detection_started
-            if MOCKVAR_is_detection_started:
-                return False
-            MOCKVAR_is_detection_started = True
-            return True
-        return False
-
-    def is_detection_ended(self):
-        """
-        人の検知が終了したかどうかを返す
-        モック：一度ブートセルボタンを押されてから離されたらTrueを返す
-        """
-        global MOCKVAR_is_detection_started
-        if MOCKVAR_is_detection_started and rp2.bootsel_button() != 1:
-            MOCKVAR_is_detection_started = False
-            return True
-        return False
-
 
 class Timer:
     def __init__(self):
@@ -273,7 +246,7 @@ class Hub(BenTechStreamableDeviceServer):
                 )
 
             if self.motion_detector.is_detection_ended():
-                print("検知終了")
+                print(f"検知終了 - 合計滞在時間: {self.motion_detector.get_current_duration()}秒")
 
                 staying_time = self.timer.stop()
 
@@ -314,11 +287,15 @@ class Hub(BenTechStreamableDeviceServer):
     async def run(self):
         aioble.register_services(self.service)
 
+        self.motion_detector.monitoring = True
         control_devices_task = asyncio.create_task(self._control_devices())
         communicate_web_app_task = asyncio.create_task(self._communicate_web_app())
+        monitor_presence_task = asyncio.create_task(self.motion_detector.monitor_presence())
+
 
         await control_devices_task
         await communicate_web_app_task
+        await monitor_presence_task
 
 
 if __name__ == "__main__":
