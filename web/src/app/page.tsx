@@ -554,7 +554,7 @@ export default function Component() {
                         {stayingTime.getSeconds()}秒
                       </h2>
                       <p className="text-sm text-gray-500">
-                        トイレットペーパー消費量:{" "}
+                        ペーパー消費量:{" "}
                         {h.usedRollCount === null
                           ? "不明"
                           : h.usedRollCount + "ロール"}
