@@ -35,12 +35,14 @@ import {
 import { db } from "@/repository/frontend/firebase";
 import {
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
   Timestamp,
+  updateDoc,
 } from "firebase/firestore";
-import Image from "next/image";
+import Image, { StaticImageData } from "next/image";
 import BananaUnch from "../../public/banana.png";
 import KataiUnch from "../../public/katai.png";
 import BishaUnch from "../../public/bisha.png";
@@ -295,7 +297,37 @@ const BenTechDeviceList: BenTechDevice[] = [
 
 type UnchType = "banana" | "bisha" | "katai" | "korokoro";
 
+interface Unch {
+  type: UnchType;
+  image: StaticImageData;
+  name: String;
+}
+
+const unchList: Unch[] = [
+  {
+    type: "banana",
+    image: BananaUnch,
+    name: "バナナ",
+  },
+  {
+    type: "katai",
+    image: KataiUnch,
+    name: "カタイ",
+  },
+  {
+    type: "korokoro",
+    image: KorokoroUnch,
+    name: "コロコロ",
+  },
+  {
+    type: "bisha",
+    image: BishaUnch,
+    name: "ビシャビシャ",
+  },
+];
+
 interface History {
+  id: string;
   type: UnchType | null;
   createdAt: Timestamp;
   usedRollCount: number;
@@ -336,6 +368,9 @@ export default function Component() {
     []
   );
   const [history, setHistory] = useState<History[]>([]);
+  const [editTargetHistory, setEditTargetHistory] = useState<History | null>(
+    null
+  );
 
   const handleHubConnect = useCallback(async () => {
     setIsHubConnecting(true);
@@ -405,6 +440,16 @@ export default function Component() {
     }
   }, []);
 
+  const handleEditHistory = useCallback(async () => {
+    if (editTargetHistory === null) return;
+    const docRef = doc(db, "histories", editTargetHistory.id);
+    await updateDoc(docRef, {
+      type: editTargetHistory.type,
+      updatedAt: Timestamp.now(),
+    });
+    setEditTargetHistory(null);
+  }, [editTargetHistory]);
+
   useEffect(() => {
     const registerServiceWorker = async () => {
       await notificationManager.registerServiceWorker();
@@ -427,6 +472,7 @@ export default function Component() {
         const data = doc.data();
         console.log(data);
         history.push({
+          id: doc.id,
           type: data.type,
           createdAt: data.createdAt,
           usedRollCount: data.usedRollCount,
@@ -469,7 +515,13 @@ export default function Component() {
                       />
                     )}
 
-                    <Pencil className="h-5 w-5 text-gray-400" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditTargetHistory(h)}
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </Button>
                   </CardContent>
                 </Card>
               );
@@ -671,6 +723,53 @@ export default function Component() {
               {isWifiLoading ? "接続中..." : "接続"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 履歴編集ダイアログ */}
+      <Dialog
+        open={editTargetHistory !== null}
+        onOpenChange={(enable) => {
+          if (!enable) {
+            setEditTargetHistory(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px] rounded-xl">
+          <DialogHeader>
+            <DialogTitle>便のタイプを編集</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4 place-items-center">
+            {unchList.map((unch) => (
+              <div key={unch.type} className="w-[100px]">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setEditTargetHistory((prev) => {
+                      if (prev === null) return null;
+                      let newHistory = structuredClone(prev);
+                      newHistory.type = unch.type;
+                      return newHistory;
+                    });
+                  }}
+                  className={`p-0 h-auto w-auto ${
+                    editTargetHistory?.type === unch.type
+                      ? "ring-2 ring-primary ring-offset-2"
+                      : ""
+                  }`}
+                >
+                  <Image src={unch.image} alt="" className="rounded-md" />
+                </Button>
+                <span className="mt-2 text-sm text-center block">
+                  {unch.name}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-center mt-4">
+            <Button onClick={handleEditHistory}>編集</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
