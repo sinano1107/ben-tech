@@ -5,6 +5,7 @@ import aioble
 import bluetooth
 import network
 import json
+import urequests
 from micropython import const
 from ..common import (
     BenTechStreamableDeviceServer,
@@ -75,6 +76,29 @@ class Hub(BenTechStreamableDeviceServer):
         self.motion_detector = PIRMotionDetector()
         self.subscription = None
 
+    ###### 通知関連 ######
+    async def _send_notification(self):
+        print("通知を送ります")
+        if not self.wlan.isconnected():
+            print("WiFiにつながっていないので通知できません")
+            return
+        elif self.subscription is None:
+            print("subscriptionが設定されていないので通知できません")
+            return
+
+        data = {
+            "message": "Hubからのメッセージ",
+            "subscription": self.subscription,
+        }
+        data = json.dumps(data).encode("utf-8")
+
+        urequests.post(
+            "https://bentech-web-app.vercel.app/api/sendNotification",
+            headers={"Content-Type": "application/json"},
+            data=data,
+        )
+        print("通知を送りました")
+
     ###### Web Appとの通信関連 ######
     async def _listen_wifi_data(self):
         msg = await self.start_listen()
@@ -129,7 +153,8 @@ class Hub(BenTechStreamableDeviceServer):
         elif command == __class__.COMMANDS["DISCONNECT_WIFI"]:
             await self._disconnect_wifi()
         elif command == __class__.COMMANDS["SET_SUBSCRIPTION"]:
-            self.subscription = await self.start_listen()
+            subscription = await self.start_listen()
+            self.subscription = json.loads(subscription)
             print(f"subscriptionを設定しました\n\t{self.subscription}")
         else:
             print(f"Unknown Command Received: {command}")
@@ -218,6 +243,11 @@ class Hub(BenTechStreamableDeviceServer):
                     self.auto_flusher_manager.flush(),
                     # 消臭する
                     self.deodorant_manager.spray(),
+                )
+
+                await asyncio.gather(
+                    # 通知を送る
+                    self._send_notification(),
                 )
 
             await asyncio.sleep(0.1)
