@@ -34,23 +34,15 @@ exports.saveHistory = onRequest(async (request, response) => {
   response.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, POST");
 
   const body = request.body;
-  const type = body["type"];
   const stayingTime = body["stayingTime"];
   const usedRollCount = body["usedRollCount"];
-  const subscription = body["subscription"];
+  const subscription = body["subscription"] || null;
 
-  if (
-    type === undefined ||
-    stayingTime === undefined ||
-    usedRollCount === undefined ||
-    subscription === undefined
-  ) {
+  if (stayingTime === undefined || usedRollCount === undefined) {
     response.status(400).send(
       `何か値が入ってないよ ${JSON.stringify({
-        type,
         stayingTime,
         usedRollCount,
-        subscription,
       })}`
     );
     return;
@@ -80,19 +72,28 @@ exports.saveHistory = onRequest(async (request, response) => {
   };
 
   const addHistory = async () => {
+    // 選択中のunch_typeを取得
+    const doc = db.doc("/dev/data");
+    const data = await doc.get();
+    let unch_type = null;
+    if (data.exists) {
+      unch_type = data.data()["unch_type"];
+    }
+
     await db.collection("histories").add({
-      type,
+      // 選択中のうんちタイプを適用
+      type: unch_type,
       stayingTime,
       usedRollCount,
       createdAT: Timestamp.now(),
     });
+
+    // うんちタイプをリセット
+    doc.update({ unch_type: null });
   };
 
   try {
-    const [sendNotificationResponse, _] = await Promise.all([
-      sendNotification(),
-      addHistory(),
-    ]);
+    await Promise.all([sendNotification(), addHistory()]);
     response.status(200).send("complete");
   } catch (error) {
     logger.error(`error発生 ${error}`);

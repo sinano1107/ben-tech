@@ -6,8 +6,8 @@ import bluetooth
 import network
 import json
 import urequests
-from micropython import const
-from ..common import (
+from ..micropython import const
+from common import (
     BenTechStreamableDeviceServer,
 )  # pico側では同階層、開発側では違う階層
 from device_managers import (
@@ -84,7 +84,6 @@ class Hub(BenTechStreamableDeviceServer):
             return
 
         data = {
-            "type": "固い",
             "stayingTime": 3,
             "usedRollCount": 1,
             "subscription": self.subscription,
