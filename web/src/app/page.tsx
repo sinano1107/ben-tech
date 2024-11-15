@@ -13,6 +13,7 @@ import {
   Link,
   RefreshCw,
   AlertCircle,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -380,6 +381,9 @@ export default function Component() {
     usedRollCount: 0,
     paperNotificationThreshold: 100,
   });
+  const [isSetting, setIsSetting] = useState(false);
+  const [paperNotificationThreshold, setPaperNotificationThreshold] =
+    useState(5);
 
   const handleHubConnect = useCallback(async () => {
     setIsHubConnecting(true);
@@ -466,6 +470,14 @@ export default function Component() {
     });
   }, []);
 
+  const handleSetting = useCallback(async () => {
+    const docRef = doc(db, "dev", "data");
+    await updateDoc(docRef, {
+      paperNotificationThreshold,
+    });
+    setIsSetting(false);
+  }, [paperNotificationThreshold]);
+
   useEffect(() => {
     const registerServiceWorker = async () => {
       await notificationManager.registerServiceWorker();
@@ -505,8 +517,9 @@ export default function Component() {
   useEffect(() => {
     const docRef = doc(db, "dev", "data");
     const unsub = onSnapshot(docRef, (doc) => {
-      const data = doc.data();
-      setData(data as Data);
+      const data = doc.data() as Data;
+      setData(data);
+      setPaperNotificationThreshold(data.paperNotificationThreshold);
     });
 
     return unsub;
@@ -702,6 +715,13 @@ export default function Component() {
               </Button>
             </>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSetting(true)}
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
         </div>
       </header>
 
@@ -779,6 +799,40 @@ export default function Component() {
               {isWifiLoading ? "接続中..." : "接続"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSetting} onOpenChange={setIsSetting}>
+        <DialogContent className="sm:max-w-[425px] rounded-lg">
+          <DialogHeader>
+            <DialogTitle>Settings</DialogTitle>
+          </DialogHeader>
+          <Label htmlFor="paperNotificationThreshold">
+            トイレットペーパーの通知を行うロール数
+          </Label>
+          <form>
+            <Input
+              id="paperNotificationThreshold"
+              type="number"
+              min={5}
+              max={100}
+              value={paperNotificationThreshold}
+              onChange={(e) =>
+                setPaperNotificationThreshold(Number(e.target.value))
+              }
+            />
+            <div className="flex justify-center mt-4">
+              <Button
+                type="submit"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSetting();
+                }}
+              >
+                編集
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
