@@ -76,28 +76,30 @@ class Hub(BenTechStreamableDeviceServer):
         self.motion_detector = PIRMotionDetector()
         self.subscription = None
 
-    ###### 通知関連 ######
-    async def _send_notification(self):
-        print("通知を送ります")
+    ###### 保存関連 ######
+    async def _save_history(self):
+        print("履歴を保存します")
         if not self.wlan.isconnected():
             print("WiFiにつながっていないので通知できません")
             return
-        elif self.subscription is None:
-            print("subscriptionが設定されていないので通知できません")
-            return
 
         data = {
-            "message": "Hubからのメッセージ",
+            "type": "固い",
+            "stayingTime": 3,
+            "usedRollCount": 1,
             "subscription": self.subscription,
         }
         data = json.dumps(data).encode("utf-8")
 
-        urequests.post(
-            "https://bentech-web-app.vercel.app/api/sendNotification",
+        response = urequests.post(
+            "https://savehistory-t2l7bkkhbq-an.a.run.app",
             headers={"Content-Type": "application/json"},
             data=data,
         )
-        print("通知を送りました")
+        print(
+            f"履歴保存をリクエストしました\n\tstatus_code: {response.status_code}\n\ttext: {response.text}"
+        )
+        response.close()
 
     ###### Web Appとの通信関連 ######
     async def _listen_wifi_data(self):
@@ -246,8 +248,8 @@ class Hub(BenTechStreamableDeviceServer):
                 )
 
                 await asyncio.gather(
-                    # 通知を送る
-                    self._send_notification(),
+                    # 履歴を保存します（自動的に通知も送る）
+                    self._save_history()
                 )
 
             await asyncio.sleep(0.1)
