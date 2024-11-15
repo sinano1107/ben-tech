@@ -187,6 +187,7 @@ class HubController {
     return {
       wifiConnected: info["WIFI_CONNECTED"],
       subscription: info["SUBSCRIPTION"],
+      connectedDevices: info["CONNECTED_DEVICES"],
     };
   }
 
@@ -237,6 +238,41 @@ class NotificationManager {
   }
 }
 
+type BenTechDeviceType =
+  | "lid-controller"
+  | "paper-observer"
+  | "auto-flusher"
+  | "deodorant";
+
+interface BenTechDevice {
+  type: BenTechDeviceType;
+  displayName: string;
+  description: string;
+}
+
+const BenTechDeviceList: BenTechDevice[] = [
+  {
+    type: "lid-controller",
+    displayName: "Lid controller",
+    description: "蓋を開け閉めします",
+  },
+  {
+    type: "paper-observer",
+    displayName: "Paper observer",
+    description: "トイレットペーパーの消費量を観測します",
+  },
+  {
+    type: "auto-flusher",
+    displayName: "Auto flusher",
+    description: "水を流します",
+  },
+  {
+    type: "deodorant",
+    displayName: "Deodorant",
+    description: "消臭します",
+  },
+];
+
 const hubController = new HubController();
 const notificationManager = new NotificationManager();
 
@@ -254,11 +290,9 @@ export default function Component() {
   const [isHubConnected, setIsHubConnected] = useState(false);
   const [isHubConnecting, setIsHubConnecting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [bleDevices, setBleDevices] = useState([
-    { name: "デバイス1", status: "接続中" },
-    { name: "デバイス2", status: "未接続" },
-    { name: "デバイス3", status: "ペアリング済み" },
-  ]);
+  const [connectedDevices, setConnectedDevices] = useState<BenTechDeviceType[]>(
+    []
+  );
 
   const handleHubConnect = useCallback(async () => {
     setIsHubConnecting(true);
@@ -271,6 +305,7 @@ export default function Component() {
         JSON.stringify(notificationManager.getSubscription()) ===
           info.subscription
       );
+      setConnectedDevices(info.connectedDevices);
     } catch (error) {
       console.log("Hubとの接続に失敗しました:", error);
     } finally {
@@ -315,16 +350,16 @@ export default function Component() {
     }
   }, []);
 
-  const handleScanDevices = useCallback(() => {
-    setIsScanning(true);
-    setTimeout(() => {
-      setBleDevices([
-        ...bleDevices,
-        { name: `新しいデバイス${bleDevices.length + 1}`, status: "未接続" },
-      ]);
-      setIsScanning(false);
-    }, 2000);
-  }, [bleDevices]);
+  // const handleScanDevices = useCallback(() => {
+  //   setIsScanning(true);
+  //   setTimeout(() => {
+  //     setBleDevices([
+  //       ...bleDevices,
+  //       { name: `新しいデバイス${bleDevices.length + 1}`, status: "未接続" },
+  //     ]);
+  //     setIsScanning(false);
+  //   }, 2000);
+  // }, [bleDevices]);
 
   useEffect(() => {
     const registerServiceWorker = async () => {
@@ -384,7 +419,7 @@ export default function Component() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleScanDevices}
+                // onClick={handleScanDevices}
                 disabled={isScanning || !isHubConnected}
               >
                 {isScanning ? (
@@ -395,20 +430,30 @@ export default function Component() {
                 {isScanning ? "スキャン中..." : "再スキャン"}
               </Button>
             </div>
-            {bleDevices.map((device, index) => (
-              <Card
-                key={index}
-                className="cursor-pointer hover:bg-gray-50 transition-colors"
-              >
-                <CardContent className="flex items-center justify-between p-4">
-                  <div>
-                    <h3 className="text-lg font-semibold">{device.name}</h3>
-                    <p className="text-sm text-gray-500">{device.status}</p>
-                  </div>
-                  <Link className="h-5 w-5 text-gray-400" />
-                </CardContent>
-              </Card>
-            ))}
+            {connectedDevices.map((connectedDeviceType) => {
+              const info = BenTechDeviceList.find(
+                (device) => device.type === connectedDeviceType
+              );
+
+              return (
+                <Card
+                  key={info?.type}
+                  className="cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <CardContent className="flex items-center justify-between p-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">
+                        {info?.displayName}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        {info?.description}
+                      </p>
+                    </div>
+                    <Link className="h-5 w-5 text-gray-400" />
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         );
       default:

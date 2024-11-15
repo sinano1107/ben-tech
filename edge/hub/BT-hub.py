@@ -134,10 +134,25 @@ class Hub(BenTechStreamableDeviceServer):
         self.wlan.disconnect()
         print("wifiとの接続解除をwlanに指示しました")
 
+    def _get_connected_devices_list(self):
+        retv = []
+
+        if self.lid_controller_manager.is_having_device():
+            retv.append("lid-controller")
+        if self.paper_observer_manager.is_having_device():
+            retv.append("paper-observer")
+        if self.auto_flusher_manager.is_having_device():
+            retv.append("auto-flusher")
+        if self.deodorant_manager.is_having_device():
+            retv.append("deodorant")
+
+        return retv
+
     async def _stream_info(self):
         data = {
             "WIFI_CONNECTED": self.wlan.isconnected(),
             "SUBSCRIPTION": self.subscription,
+            "CONNECTED_DEVICES": self._get_connected_devices_list(),
         }
         await self._send_stream(json.dumps(data))
 
