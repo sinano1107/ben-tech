@@ -207,6 +207,13 @@ class HubController {
     );
     console.log("subscription送信完了");
   }
+
+  async reScan() {
+    const response = await this.requestAndListenStream(5);
+    const devices = JSON.parse(response);
+    console.log("接続済みのデバイス", devices);
+    return devices;
+  }
 }
 
 class NotificationManager {
@@ -350,16 +357,17 @@ export default function Component() {
     }
   }, []);
 
-  // const handleScanDevices = useCallback(() => {
-  //   setIsScanning(true);
-  //   setTimeout(() => {
-  //     setBleDevices([
-  //       ...bleDevices,
-  //       { name: `新しいデバイス${bleDevices.length + 1}`, status: "未接続" },
-  //     ]);
-  //     setIsScanning(false);
-  //   }, 2000);
-  // }, [bleDevices]);
+  const handleScanDevices = useCallback(async () => {
+    setIsScanning(true);
+    try {
+      const connectedDevices = await hubController.reScan();
+      setConnectedDevices(connectedDevices);
+    } catch (error) {
+      console.log("リスキャンに失敗しました", error);
+    } finally {
+      setIsScanning(false);
+    }
+  }, []);
 
   useEffect(() => {
     const registerServiceWorker = async () => {
@@ -419,7 +427,7 @@ export default function Component() {
               <Button
                 variant="outline"
                 size="sm"
-                // onClick={handleScanDevices}
+                onClick={handleScanDevices}
                 disabled={isScanning || !isHubConnected}
               >
                 {isScanning ? (

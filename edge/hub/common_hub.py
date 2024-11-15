@@ -20,6 +20,9 @@ class BenTechDeviceManager:
         if result.name() == self.name:
             self.device = result.device
 
+    def is_connected(self):
+        return self.connection is not None
+
     async def connect(self):
         if self.device is None:
             self._log("[connect] deviceを保持していません")

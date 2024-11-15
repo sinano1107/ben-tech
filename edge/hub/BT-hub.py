@@ -53,6 +53,7 @@ class Hub(BenTechStreamableDeviceServer):
         "REQUEST_INFO": b"\x02",
         "DISCONNECT_WIFI": b"\x03",
         "SET_SUBSCRIPTION": b"\x04",
+        "RE_SCAN": b"\x05",
     }
 
     RESPONSES = {
@@ -137,13 +138,13 @@ class Hub(BenTechStreamableDeviceServer):
     def _get_connected_devices_list(self):
         retv = []
 
-        if self.lid_controller_manager.is_having_device():
+        if self.lid_controller_manager.is_connected():
             retv.append("lid-controller")
-        if self.paper_observer_manager.is_having_device():
+        if self.paper_observer_manager.is_connected():
             retv.append("paper-observer")
-        if self.auto_flusher_manager.is_having_device():
+        if self.auto_flusher_manager.is_connected():
             retv.append("auto-flusher")
-        if self.deodorant_manager.is_having_device():
+        if self.deodorant_manager.is_connected():
             retv.append("deodorant")
 
         return retv
@@ -172,6 +173,13 @@ class Hub(BenTechStreamableDeviceServer):
             subscription = await self.start_listen()
             self.subscription = json.loads(subscription)
             print(f"subscriptionを設定しました\n\t{self.subscription}")
+        elif command == __class__.COMMANDS["RE_SCAN"]:
+            print("再スキャンして接続を試みます")
+            self.led.on()
+            await self._scan()
+            await self._connect()
+            self.led.off()
+            await self._send_stream(json.dumps(self._get_connected_devices_list()))
         else:
             print(f"Unknown Command Received: {command}")
 
