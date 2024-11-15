@@ -347,6 +347,11 @@ function getUnchImage(type: UnchType) {
   }
 }
 
+type Data = {
+  usedRollCount: number;
+  paperNotificationThreshold: number;
+};
+
 const hubController = new HubController();
 const notificationManager = new NotificationManager();
 
@@ -371,6 +376,10 @@ export default function Component() {
   const [editTargetHistory, setEditTargetHistory] = useState<History | null>(
     null
   );
+  const [data, setData] = useState<Data>({
+    usedRollCount: 0,
+    paperNotificationThreshold: 100,
+  });
 
   const handleHubConnect = useCallback(async () => {
     setIsHubConnecting(true);
@@ -450,6 +459,13 @@ export default function Component() {
     setEditTargetHistory(null);
   }, [editTargetHistory]);
 
+  const handlePaperReset = useCallback(async () => {
+    const docRef = doc(db, "dev", "data");
+    await updateDoc(docRef, {
+      usedRollCount: 0,
+    });
+  }, []);
+
   useEffect(() => {
     const registerServiceWorker = async () => {
       await notificationManager.registerServiceWorker();
@@ -485,11 +501,43 @@ export default function Component() {
     return unsub;
   }, []);
 
+  // dev/dataをリッスン
+  useEffect(() => {
+    const docRef = doc(db, "dev", "data");
+    const unsub = onSnapshot(docRef, (doc) => {
+      const data = doc.data();
+      setData(data as Data);
+    });
+
+    return unsub;
+  }, []);
+
   const renderScreen = () => {
     switch (currentScreen) {
       case "home":
         return (
           <div className="space-y-4">
+            {/* ペーパーを用意しておくよう警告 */}
+            {data.usedRollCount >= data.paperNotificationThreshold && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>
+                  そろそろトイレットペーパーを準備しておきましょう
+                </AlertTitle>
+                <AlertDescription>
+                  トイレットペーパーを交換したらこちらから
+                  <span> </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handlePaperReset}
+                  >
+                    リセット！
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {history.map((h) => {
               const unchImage = h.type === null ? null : getUnchImage(h.type);
               const stayingTime = new Date(h.stayingTime * 1000);

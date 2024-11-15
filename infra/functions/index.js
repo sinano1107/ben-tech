@@ -51,29 +51,11 @@ exports.saveHistory = onRequest(async (request, response) => {
     structedData: true,
   });
 
-  const sendNotification = async () => {
-    if (subscription === null) {
-      logger.info("subscriptionがnullなのでブレイクします");
-      return;
-    }
-
-    // POSTリクエストのための設定
-    const url = "https://bentech-web-app.vercel.app/api/sendNotification";
-    const data = {
-      message: "cloud functions からの通知",
-      subscription,
-    }; // POSTするデータ
-    const headers = {
-      "Content-Type": "application/json",
-    };
-
-    return await axios.post(url, data, { headers });
-  };
+  const doc = db.doc("/dev/data");
+  const data = await doc.get();
 
   const addHistory = async () => {
     // 選択中のunch_typeを取得
-    const doc = db.doc("/dev/data");
-    const data = await doc.get();
     let unch_type = null;
     if (data.exists) {
       unch_type = data.data()["unch_type"];
@@ -88,11 +70,50 @@ exports.saveHistory = onRequest(async (request, response) => {
     });
 
     // うんちタイプをリセット
-    doc.update({ unch_type: null });
+    await doc.update({ unch_type: null });
+  };
+
+  const checkPaperRoll = async () => {
+    if (usedRollCount === null) return;
+
+    // 現在の合計消費ロール数・閾値を取得
+    const currentUsedRollCount = data.data()["usedRollCount"];
+    const paperNotificationThreshold =
+      data.data()["paperNotificationThreshold"];
+
+    // 合計消費ロールに新たな消費ロール数を加算
+    const newUsedRollCount = currentUsedRollCount + usedRollCount;
+
+    // 新たな合計消費ロール数が閾値を上回っていて、subscriptionを渡されていたら通知
+    const sendNotification = async () => {
+      if (
+        newUsedRollCount >= paperNotificationThreshold &&
+        subscription !== null
+      ) {
+        const url = "https://bentech-web-app.vercel.app/api/sendNotification";
+        const data = {
+          message: "そろそろトイレットペーパーを準備しておきましょう",
+          subscription,
+        };
+        const headers = {
+          "Content-Type": "application/json",
+        };
+
+        return await axios.post(url, data, { headers });
+      }
+    };
+
+    // 消費したトイレットペーパーロール数を更新
+    const updateUsedRollCount = async () => {
+      await doc.update({ usedRollCount: newUsedRollCount });
+    };
+
+    // 各タスクを並列で実行
+    await Promise.all([sendNotification(), updateUsedRollCount()]);
   };
 
   try {
-    await Promise.all([sendNotification(), addHistory()]);
+    await Promise.all([addHistory(), checkPaperRoll()]);
     response.status(200).send("complete");
   } catch (error) {
     logger.error(`error発生 ${error}`);
