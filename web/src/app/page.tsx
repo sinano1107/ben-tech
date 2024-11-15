@@ -9,7 +9,7 @@ import {
   Loader2,
   Home,
   List,
-  Clock,
+  Pencil,
   Link,
   RefreshCw,
   AlertCircle,
@@ -32,6 +32,19 @@ import {
   concatArrayBuffers,
   uint8ToArrayBuffer,
 } from "@/lib/utils";
+import { db } from "@/repository/frontend/firebase";
+import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  Timestamp,
+} from "firebase/firestore";
+import Image from "next/image";
+import BananaUnch from "../../public/banana.png";
+import KataiUnch from "../../public/katai.png";
+import BishaUnch from "../../public/bisha.png";
+import KorokoroUnch from "../../public/korokoro.png";
 
 class HubController {
   private hubServiceId = "e295c051-7ac4-4d72-b7ea-3e71e47e15a9";
@@ -280,6 +293,28 @@ const BenTechDeviceList: BenTechDevice[] = [
   },
 ];
 
+type UnchType = "banana" | "bisha" | "katai" | "korokoro";
+
+interface History {
+  type: UnchType | null;
+  createdAt: Timestamp;
+  usedRollCount: number;
+  stayingTime: number;
+}
+
+function getUnchImage(type: UnchType) {
+  switch (type) {
+    case "banana":
+      return BananaUnch;
+    case "bisha":
+      return BishaUnch;
+    case "katai":
+      return KataiUnch;
+    case "korokoro":
+      return KorokoroUnch;
+  }
+}
+
 const hubController = new HubController();
 const notificationManager = new NotificationManager();
 
@@ -300,6 +335,7 @@ export default function Component() {
   const [connectedDevices, setConnectedDevices] = useState<BenTechDeviceType[]>(
     []
   );
+  const [history, setHistory] = useState<History[]>([]);
 
   const handleHubConnect = useCallback(async () => {
     setIsHubConnecting(true);
@@ -382,31 +418,62 @@ export default function Component() {
     setPassword(localStorage.getItem("WIFI_PASSWORD") || "");
   }, []);
 
+  // 履歴をリッスン
+  useEffect(() => {
+    const q = query(collection(db, "histories"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(q, (querySnapshot) => {
+      let history: History[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        console.log(data);
+        history.push({
+          type: data.type,
+          createdAt: data.createdAt,
+          usedRollCount: data.usedRollCount,
+          stayingTime: data.stayingTime,
+        });
+      });
+      setHistory(history);
+    });
+
+    return unsub;
+  }, []);
+
   const renderScreen = () => {
     switch (currentScreen) {
       case "home":
         return (
           <div className="space-y-4">
-            {[
-              { title: "最後の接続", time: "2時間前" },
-              { title: "データ同期", time: "昨日" },
-              { title: "設定変更", time: "先週" },
-              { title: "初回接続", time: "先月" },
-              { title: "アプリインストール", time: "2ヶ月前" },
-            ].map((item, index) => (
-              <Card
-                key={index}
-                className="cursor-pointer hover:bg-gray-50 transition-colors"
-              >
-                <CardContent className="flex items-center justify-between p-4">
-                  <div>
-                    <h2 className="text-lg font-semibold">{item.title}</h2>
-                    <p className="text-sm text-gray-500">{item.time}</p>
-                  </div>
-                  <Clock className="h-5 w-5 text-gray-400" />
-                </CardContent>
-              </Card>
-            ))}
+            {history.map((h) => {
+              const unchImage = h.type === null ? null : getUnchImage(h.type);
+
+              return (
+                <Card
+                  key={h.createdAt.seconds}
+                  className="cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <CardContent className="flex items-center justify-between p-4">
+                    <div>
+                      <h2 className="text-lg font-semibold">
+                        {h.usedRollCount}ロール使用しました
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        {new Date(h.createdAt.seconds * 1000).toLocaleString()}
+                      </p>
+                    </div>
+                    {unchImage && (
+                      <Image
+                        src={unchImage}
+                        alt=""
+                        className="w-24 object-contain"
+                      />
+                    )}
+
+                    <Pencil className="h-5 w-5 text-gray-400" />
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         );
       case "devices":

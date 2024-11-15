@@ -85,7 +85,7 @@ exports.saveHistory = onRequest(async (request, response) => {
       type: unch_type,
       stayingTime,
       usedRollCount,
-      createdAT: Timestamp.now(),
+      createdAt: Timestamp.now(),
     });
 
     // うんちタイプをリセット
