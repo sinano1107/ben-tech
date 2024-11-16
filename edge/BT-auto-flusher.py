@@ -68,11 +68,11 @@ class AutoFlusher(BenTechDeviceServer):
 
     async def _handle_motor_command(self):
         print("Rotating clockwise...")
-        self.motor.rotate(turns=1, clockwise=True)
+        self.motor.rotate(turns=0.75, clockwise=False)
         await asyncio.sleep(1)
 
         print("Rotating counter-clockwise...")
-        self.motor.rotate(turns=1, clockwise=False)
+        self.motor.rotate(turns=0.75, clockwise=True)
 
         print("complete")
 
