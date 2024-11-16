@@ -36,7 +36,9 @@ import {
 import { db } from "@/repository/frontend/firebase";
 import {
   collection,
+  deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -48,6 +50,7 @@ import BananaUnch from "../../public/banana.png";
 import KataiUnch from "../../public/katai.png";
 import BishaUnch from "../../public/bisha.png";
 import KorokoroUnch from "../../public/korokoro.png";
+import firebase from "firebase/compat/app";
 
 class HubController {
   private hubServiceId = "e295c051-7ac4-4d72-b7ea-3e71e47e15a9";
@@ -478,6 +481,18 @@ export default function Component() {
     setIsSetting(false);
   }, [paperNotificationThreshold]);
 
+  const handleRemoveHistories = useCallback(async () => {
+    const collectionPath = "histories";
+    const colRef = collection(db, collectionPath);
+    const snapshot = await getDocs(colRef);
+
+    // コレクション内のすべてのドキュメントを削除
+    for (const docSnap of snapshot.docs) {
+      await deleteDoc(doc(db, collectionPath, docSnap.id));
+    }
+    setIsSetting(false);
+  }, []);
+
   useEffect(() => {
     const registerServiceWorker = async () => {
       await notificationManager.registerServiceWorker();
@@ -807,6 +822,9 @@ export default function Component() {
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>
+          <Button variant="ghost" onClick={handleRemoveHistories}>
+            履歴を削除
+          </Button>
           <Label htmlFor="paperNotificationThreshold">
             トイレットペーパーの通知を行うロール数
           </Label>
