@@ -1,6 +1,6 @@
 from micropython import const
 import bluetooth
-import asyncio
+import uasyncio
 
 
 class BenTechDeviceManager:
@@ -115,14 +115,14 @@ class ResponsiveDeviceManager(ControllableDeviceManager):
             self._log("charactaristicが不明のためresponseを待てません")
             return
 
-        control_task = asyncio.create_task(self.control(value))
+        control_task = uasyncio.create_task(self.control(value))
 
         async def listen_response():
             nonlocal retv
             data = await char.notified()
             retv = callback(data)
 
-        listen_response_task = asyncio.create_task(listen_response())
+        listen_response_task = uasyncio.create_task(listen_response())
         await listen_response_task
         await control_task
 

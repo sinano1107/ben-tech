@@ -1,10 +1,10 @@
 # BT-hub
 
-import asyncio
+import uasyncio
 import aioble
 import bluetooth
 import network
-import json
+import ujson
 
 # import urequests
 # import utime
@@ -101,6 +101,10 @@ class Hub(BenTechStreamableDeviceServer):
         self.mock_motion_detector = MockPIRMotionDetector()
         self.subscription = None
 
+        # JSONファイルから復元
+        with open("subscription.json", "r") as file:
+            self.subscription = ujson.load(file)
+
     ###### Firebase関連 ######
     async def _save_history(self, staying_time, used_roll_count):
         print("履歴を保存します")
@@ -115,11 +119,11 @@ class Hub(BenTechStreamableDeviceServer):
         }
 
         """
-        data = json.dumps(data).encode("utf-8")
+        data = ujson.dumps(data).encode("utf-8")
 
         response = urequests.post(
             "https://savehistory-t2l7bkkhbq-an.a.run.app",
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/ujson"},
             data=data,
         )
         print(
@@ -146,8 +150,8 @@ class Hub(BenTechStreamableDeviceServer):
         """
         response = urequests.post(
             "https://editdata-t2l7bkkhbq-dt.a.run.app",
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(params),
+            headers={"Content-Type": "application/ujson"},
+            data=ujson.dumps(params),
         )
         """
         print(f"dataの変更をリクエストしました\n\tparams: {params}")
@@ -156,7 +160,7 @@ class Hub(BenTechStreamableDeviceServer):
     ###### Web Appとの通信関連 ######
     async def _listen_wifi_data(self):
         msg = await self.start_listen()
-        wifi_data = json.loads(msg)
+        wifi_data = ujson.loads(msg)
         return wifi_data["ssid"], wifi_data["password"]
 
     async def _connect_wifi(self, ssid, password):
@@ -171,7 +175,7 @@ class Hub(BenTechStreamableDeviceServer):
         while not self.wlan.isconnected() and count <= limit_sec:
             print("WiFiルーターと接続中")
             count += 1
-            await asyncio.sleep(1)
+            await uasyncio.sleep(1)
 
         if count >= limit_sec:
             print("WiFiルーターと接続失敗")
@@ -207,7 +211,7 @@ class Hub(BenTechStreamableDeviceServer):
             "SUBSCRIPTION": self.subscription,
             "CONNECTED_DEVICES": self._get_connected_devices_list(),
         }
-        await self._send_stream(json.dumps(data))
+        await self._send_stream(ujson.dumps(data))
 
     async def _handle_control(self, command):
         if command == __class__.COMMANDS["CONNECT_WIFI"]:
@@ -223,7 +227,10 @@ class Hub(BenTechStreamableDeviceServer):
             await self._disconnect_wifi()
         elif command == __class__.COMMANDS["SET_SUBSCRIPTION"]:
             subscription = await self.start_listen()
-            self.subscription = json.loads(subscription)
+            self.subscription = ujson.loads(subscription)
+            # 保存
+            with open("subscription.json", "w") as file:
+                ujson.dump(subscription, file)
             print(f"subscriptionを設定しました\n\t{self.subscription}")
         elif command == __class__.COMMANDS["RE_SCAN"]:
             print("再スキャンして接続を試みます")
@@ -231,7 +238,7 @@ class Hub(BenTechStreamableDeviceServer):
             await self._scan()
             await self._connect()
             self.led.off()
-            await self._send_stream(json.dumps(self._get_connected_devices_list()))
+            await self._send_stream(ujson.dumps(self._get_connected_devices_list()))
         else:
             print(f"Unknown Command Received: {command}")
 
@@ -266,7 +273,7 @@ class Hub(BenTechStreamableDeviceServer):
     async def _connect(self):
         # gatherはダメだった
         """
-        await asyncio.gather(
+        await uasyncio.gather(
             self.lid_controller_manager.connect(),
             self.paper_observer_manager.connect(),
             self.auto_flusher_manager.connect(),
@@ -297,7 +304,7 @@ class Hub(BenTechStreamableDeviceServer):
 
                 # self.timer.start()
 
-                await asyncio.gather(
+                await uasyncio.gather(
                     # 蓋開閉機へ開けるように指示
                     self.lid_controller_manager.open(),
                     # ペーパー測定機へ測定を開始するように指示
@@ -316,7 +323,7 @@ class Hub(BenTechStreamableDeviceServer):
 
                 # staying_time = self.timer.stop()
 
-                _, used_roll_count = await asyncio.gather(
+                _, used_roll_count = await uasyncio.gather(
                     # 蓋開閉機へ閉じるように指示
                     self.lid_controller_manager.close(),
                     # ペーパー測定機へ測定を終了するように指示
@@ -324,27 +331,27 @@ class Hub(BenTechStreamableDeviceServer):
                 )
                 print(f"消費ロール数 {used_roll_count}")
 
-                await asyncio.gather(
+                await uasyncio.gather(
                     # 水を流す
                     self.auto_flusher_manager.flush(),
                     # 消臭する
                     self.deodorant_manager.spray(),
                 )
 
-                await asyncio.gather(
+                await uasyncio.gather(
                     # 履歴を保存します（自動的に通知も送る）
                     self._save_history(staying_time, used_roll_count),
                 )
 
-            await asyncio.sleep(0.1)
+            await uasyncio.sleep(0.1)
 
     async def _communicate_web_app(self):
         # BenTechStreamableDeviceServerのrun()を参考
         while True:
             await self._wait_to_connect()
 
-            listen_control_task = asyncio.create_task(self._listen_control())
-            listen_stream_task = asyncio.create_task(self._listen_stream())
+            listen_control_task = uasyncio.create_task(self._listen_control())
+            listen_stream_task = uasyncio.create_task(self._listen_stream())
 
             await listen_control_task
             await listen_stream_task
@@ -360,9 +367,9 @@ class Hub(BenTechStreamableDeviceServer):
         self.led.off()
 
         self.motion_detector.monitoring = True
-        control_devices_task = asyncio.create_task(self._control_devices())
-        communicate_web_app_task = asyncio.create_task(self._communicate_web_app())
-        monitor_presence_task = asyncio.create_task(
+        control_devices_task = uasyncio.create_task(self._control_devices())
+        communicate_web_app_task = uasyncio.create_task(self._communicate_web_app())
+        monitor_presence_task = uasyncio.create_task(
             self.motion_detector.monitor_presence()
         )
 
@@ -374,8 +381,8 @@ class Hub(BenTechStreamableDeviceServer):
 if __name__ == "__main__":
     hub = Hub()
     try:
-        asyncio.run(hub.run())
+        uasyncio.run(hub.run())
     except KeyboardInterrupt:
         print("===中断しました===")
     finally:
-        asyncio.run(hub.disconnect())
+        uasyncio.run(hub.disconnect())
