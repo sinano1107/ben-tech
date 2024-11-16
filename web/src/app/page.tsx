@@ -405,8 +405,8 @@ export default function Component() {
   }, []);
 
   const handleWifiConnect = useCallback(async () => {
-    if (!ssid || !password) {
-      console.log("ssidもしくはpasswordが空です");
+    if (!ssid) {
+      console.log("ssidが空です");
       return;
     }
     setIsWifiLoading(true);

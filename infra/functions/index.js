@@ -47,9 +47,18 @@ exports.saveHistory = onRequest(async (request, response) => {
     return;
   }
 
-  logger.info(`履歴の保存を要請されました`, request.body, {
-    structedData: true,
-  });
+  logger.info(
+    `履歴の保存を要請されました`,
+    request.body,
+    {
+      stayingTime,
+      usedRollCount,
+      subscription,
+    },
+    {
+      structedData: true,
+    }
+  );
 
   const doc = db.doc("/dev/data");
   const data = await doc.get();
@@ -75,6 +84,8 @@ exports.saveHistory = onRequest(async (request, response) => {
 
   const checkPaperRoll = async () => {
     if (usedRollCount === null) return;
+
+    if (!data.exists) return;
 
     // 現在の合計消費ロール数・閾値を取得
     const currentUsedRollCount = data.data()["usedRollCount"];

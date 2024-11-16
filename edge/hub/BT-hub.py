@@ -6,7 +6,7 @@ import bluetooth
 import network
 import json
 import urequests
-import utime
+# import utime
 from micropython import const
 from common import (
     BenTechStreamableDeviceServer,
@@ -21,6 +21,7 @@ from motion_sensor import PIRMotionDetector
 
 MOCKVAR_is_detection_started = False
 
+"""
 class Timer:
     def __init__(self):
         self.start_time = None
@@ -36,6 +37,7 @@ class Timer:
         diff = end_time - self.start_time
         self.start_time = None
         return diff
+"""
 
 
 class Hub(BenTechStreamableDeviceServer):
@@ -61,7 +63,7 @@ class Hub(BenTechStreamableDeviceServer):
             stream_char_id=bluetooth.UUID("feb2f5aa-ec75-46ef-8da6-2da832175d8e"),
         )
         self.wlan = network.WLAN(network.STA_IF)
-        self.timer = Timer()
+        # self.timer = Timer()
         self.lid_controller_manager = LidControllerManager()
         self.paper_observer_manager = PaperObserverManager()
         self.auto_flusher_manager = AutoFlusherManager()
@@ -103,7 +105,7 @@ class Hub(BenTechStreamableDeviceServer):
         print(ssid, password)
         self.wlan.active(True)
 
-        self.wlan.connect(ssid, password)
+        self.wlan.connect(ssid.encode("utf-8"), password)
 
         limit_sec = 20
         count = 0
@@ -236,7 +238,7 @@ class Hub(BenTechStreamableDeviceServer):
             if self.motion_detector.is_detection_started():
                 print("新しい動き検知を開始しました")
 
-                self.timer.start()
+                # self.timer.start()
 
                 await asyncio.gather(
                     # 蓋開閉機へ開けるように指示
@@ -246,9 +248,10 @@ class Hub(BenTechStreamableDeviceServer):
                 )
 
             if self.motion_detector.is_detection_ended():
-                print(f"検知終了 - 合計滞在時間: {self.motion_detector.get_current_duration()}秒")
+                staying_time = self.motion_detector.get_current_duration()
+                print(f"検知終了 - 合計滞在時間: {staying_time}秒")
 
-                staying_time = self.timer.stop()
+                # staying_time = self.timer.stop()
 
                 _, used_roll_count = await asyncio.gather(
                     # 蓋開閉機へ閉じるように指示
@@ -256,6 +259,7 @@ class Hub(BenTechStreamableDeviceServer):
                     # ペーパー測定機へ測定を終了するように指示
                     self.paper_observer_manager.stop_observe(),
                 )
+                print(f"消費ロール数 {used_roll_count}")
 
                 await asyncio.gather(
                     # 水を流す
@@ -290,8 +294,9 @@ class Hub(BenTechStreamableDeviceServer):
         self.motion_detector.monitoring = True
         control_devices_task = asyncio.create_task(self._control_devices())
         communicate_web_app_task = asyncio.create_task(self._communicate_web_app())
-        monitor_presence_task = asyncio.create_task(self.motion_detector.monitor_presence())
-
+        monitor_presence_task = asyncio.create_task(
+            self.motion_detector.monitor_presence()
+        )
 
         await control_devices_task
         await communicate_web_app_task
