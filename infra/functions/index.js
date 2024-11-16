@@ -35,7 +35,8 @@ exports.saveHistory = onRequest(async (request, response) => {
 
   const body = request.body;
   const stayingTime = body["stayingTime"];
-  const usedRollCount = body["usedRollCount"] || null;
+  const usedRollCount =
+    body["usedRollCount"] === undefined ? null : body["usedRollCount"];
   const subscription = body["subscription"] || null;
 
   if (stayingTime === undefined) {
@@ -79,7 +80,7 @@ exports.saveHistory = onRequest(async (request, response) => {
     });
 
     // うんちタイプをリセット
-    await doc.update({ unch_type: null });
+    await doc.update({ unch_type: null, in_room: false });
   };
 
   const checkPaperRoll = async () => {

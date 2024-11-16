@@ -5,7 +5,8 @@ import aioble
 import bluetooth
 import network
 import json
-import urequests
+
+# import urequests
 # import utime
 from micropython import const
 from common import (
@@ -18,8 +19,36 @@ from device_managers import (
     DeodorantManager,
 )
 from motion_sensor import PIRMotionDetector
+from usocket_firebase_test import send_post_request
 
 MOCKVAR_is_detection_started = False
+
+
+class MockPIRMotionDetector:
+    def is_detection_started(self):
+        """
+        人の検知が開始されたかどうかを返す
+        モック：ブートセルボタンが押されている間Trueを返す
+        """
+        if rp2.bootsel_button() == 1:
+            global MOCKVAR_is_detection_started
+            if MOCKVAR_is_detection_started:
+                return False
+            MOCKVAR_is_detection_started = True
+            return True
+        return False
+
+    def is_detection_ended(self):
+        """
+        人の検知が終了したかどうかを返す
+        モック：一度ブートセルボタンを押されてから離されたらTrueを返す
+        """
+        global MOCKVAR_is_detection_started
+        if MOCKVAR_is_detection_started and rp2.bootsel_button() != 1:
+            MOCKVAR_is_detection_started = False
+            return True
+        return False
+
 
 """
 class Timer:
@@ -69,9 +98,10 @@ class Hub(BenTechStreamableDeviceServer):
         self.auto_flusher_manager = AutoFlusherManager()
         self.deodorant_manager = DeodorantManager()
         self.motion_detector = PIRMotionDetector()
+        self.mock_motion_detector = MockPIRMotionDetector()
         self.subscription = None
 
-    ###### 保存関連 ######
+    ###### Firebase関連 ######
     async def _save_history(self, staying_time, used_roll_count):
         print("履歴を保存します")
         if not self.wlan.isconnected():
@@ -83,6 +113,8 @@ class Hub(BenTechStreamableDeviceServer):
             "usedRollCount": used_roll_count,
             "subscription": self.subscription,
         }
+
+        """
         data = json.dumps(data).encode("utf-8")
 
         response = urequests.post(
@@ -94,6 +126,32 @@ class Hub(BenTechStreamableDeviceServer):
             f"履歴保存をリクエストしました\n\tstatus_code: {response.status_code}\n\ttext: {response.text}"
         )
         response.close()
+        """
+
+        send_post_request(
+            "https://asia-northeast1-jphacks-ben-tech.cloudfunctions.net/saveHistory",
+            data,
+        )
+        print(f"履歴保存をリクエストしました")
+
+    async def _update_data(self, params):
+        # dev/dataを編集する
+        if not self.wlan.isconnected():
+            print("WiFiにつながっていないので通知できません")
+            return
+        send_post_request(
+            "https://asia-northeast2-jphacks-ben-tech.cloudfunctions.net/editData",
+            params,
+        )
+        """
+        response = urequests.post(
+            "https://editdata-t2l7bkkhbq-dt.a.run.app",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(params),
+        )
+        """
+        print(f"dataの変更をリクエストしました\n\tparams: {params}")
+        # response.close()
 
     ###### Web Appとの通信関連 ######
     async def _listen_wifi_data(self):
@@ -107,7 +165,7 @@ class Hub(BenTechStreamableDeviceServer):
 
         self.wlan.connect(ssid.encode("utf-8"), password)
 
-        limit_sec = 20
+        limit_sec = 30
         count = 0
 
         while not self.wlan.isconnected() and count <= limit_sec:
@@ -229,14 +287,13 @@ class Hub(BenTechStreamableDeviceServer):
     ###### Taskになるものたち ######
 
     async def _control_devices(self):
-        self.led.on()
-        await self._scan()
-        await self._connect()
-        self.led.off()
-
         while True:
-            if self.motion_detector.is_detection_started():
+            if (
+                self.motion_detector.is_detection_started()
+                or self.mock_motion_detector.is_detection_started()
+            ):
                 print("新しい動き検知を開始しました")
+                self.led.on()
 
                 # self.timer.start()
 
@@ -245,11 +302,17 @@ class Hub(BenTechStreamableDeviceServer):
                     self.lid_controller_manager.open(),
                     # ペーパー測定機へ測定を開始するように指示
                     self.paper_observer_manager.start_observe(),
+                    # ユーザーが入ってきたことをfirebaseに保存
+                    self._update_data({"in_room": True}),
                 )
 
-            if self.motion_detector.is_detection_ended():
+            if (
+                self.motion_detector.is_detection_ended()
+                or self.mock_motion_detector.is_detection_ended()
+            ):
                 staying_time = self.motion_detector.get_current_duration()
                 print(f"検知終了 - 合計滞在時間: {staying_time}秒")
+                self.led.off()
 
                 # staying_time = self.timer.stop()
 
@@ -270,7 +333,7 @@ class Hub(BenTechStreamableDeviceServer):
 
                 await asyncio.gather(
                     # 履歴を保存します（自動的に通知も送る）
-                    self._save_history(staying_time, used_roll_count)
+                    self._save_history(staying_time, used_roll_count),
                 )
 
             await asyncio.sleep(0.1)
@@ -290,6 +353,11 @@ class Hub(BenTechStreamableDeviceServer):
 
     async def run(self):
         aioble.register_services(self.service)
+
+        self.led.on()
+        await self._scan()
+        await self._connect()
+        self.led.off()
 
         self.motion_detector.monitoring = True
         control_devices_task = asyncio.create_task(self._control_devices())

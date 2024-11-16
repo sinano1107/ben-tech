@@ -107,18 +107,18 @@ class ResponsiveDeviceManager(ControllableDeviceManager):
     async def control_with_response(self, value, callback):
         retv = None
         listen_response_task = None
+
+        char = await self.get_characteristic(
+            self.response_service_id, self.response_char_id
+        )
+        if char is None:
+            self._log("charactaristicが不明のためresponseを待てません")
+            return
+
         control_task = asyncio.create_task(self.control(value))
 
         async def listen_response():
             nonlocal retv
-
-            char = await self.get_characteristic(
-                self.response_service_id, self.response_char_id
-            )
-            if char is None:
-                self._log("charactaristicが不明のためresponseを待てません")
-                control_task.cancel()
-                return
             data = await char.notified()
             retv = callback(data)
 
