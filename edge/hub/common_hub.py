@@ -4,11 +4,13 @@ import uasyncio
 
 
 class BenTechDeviceManager:
-    def __init__(self, name):
+
+    def __init__(self, name, service_id):
         self.name = const(name)
+        self.service_id = const(service_id)
         self.device = None
         self.connection = None
-        self.services = {}
+        self.service = None
         self.characteristics = {}
 
     def is_having_device(self):
@@ -44,75 +46,63 @@ class BenTechDeviceManager:
         await self.connection.disconnect()
         self._log("接続を解除しました")
 
-    async def get_service(self, id):
+    async def get_service(self):
         if self.connection is None:
-            self._log("接続されていません")
-            return
-        if self.services.get(id) is None:
-            self.services[id] = await self.connection.service(bluetooth.UUID(id))
-        return self.services[id]
+            raise Exception("接続されていないのでサービスを取得できない")
+        if self.service is None:
+            self.service = await self.connection.service(
+                bluetooth.UUID(self.service_id)
+            )
+        return self.service
 
-    async def get_characteristic(self, service_id, char_id):
+    async def get_characteristic(self, char_id):
         if self.connection is None:
-            self._log("接続されていません")
-            return
-        service_is_nothing = self.characteristics.get(service_id) is None
-        char_is_nothing = (
-            service_is_nothing
-            or self.characteristics.get(service_id).get(char_id) is None
-        )
-        if char_is_nothing:
-            service = await self.get_service(service_id)
-            if service == None:
-                raise Exception("serviceがNoneです。service_idを確認してください")
+            raise Exception("接続されていないのでキャラクタリスティックを取得できない")
+        is_char_nothing = self.characteristics.get(char_id) is None
+        if is_char_nothing:
+            service = await self.get_service()
             char = await service.characteristic(bluetooth.UUID(char_id))
-            if service_is_nothing:
-                self.characteristics[service_id] = {}
-            self.characteristics[service_id][char_id] = char
-        return self.characteristics[service_id][char_id]
+            self.characteristics[char_id] = char
+        return self.characteristics[char_id]
 
     def _log(self, msg):
         print(f"[{self.name}] {msg}")
 
 
 class ControllableDeviceManager(BenTechDeviceManager):
-    def __init__(self, name, control_service_id, control_char_id):
-        super().__init__(name)
-        self.control_service_id = control_service_id
+
+    def __init__(self, name, service_id, control_char_id):
+        super().__init__(name, service_id)
         self.control_char_id = control_char_id
 
     async def control(self, value):
-        char = await self.get_characteristic(
-            self.control_service_id, self.control_char_id
-        )
-        if char is None:
-            self._log("characteristicが不明のためコントロールできません")
-            return
-        await char.write(value)
+        try:
+            char = await self.get_characteristic(self.control_char_id)
+            await char.write(value)
+        except Exception as e:
+            self._log(f"コントロールに失敗しました e: {e}")
 
 
 class ResponsiveDeviceManager(ControllableDeviceManager):
+
     def __init__(
         self,
         name,
-        control_service_id,
+        service_id,
         control_char_id,
-        response_service_id,
         response_char_id,
     ):
-        super().__init__(name, control_service_id, control_char_id)
-        self.response_service_id = response_service_id
+        super().__init__(name, service_id, control_char_id)
         self.response_char_id = response_char_id
 
     async def control_with_response(self, value, callback):
         retv = None
         listen_response_task = None
 
-        char = await self.get_characteristic(
-            self.response_service_id, self.response_char_id
-        )
-        if char is None:
-            self._log("charactaristicが不明のためresponseを待てません")
+        try:
+            char = await self.get_characteristic(self.response_char_id)
+        except Exception as e:
+            self._log("control_with_responseに失敗しました")
             return
 
         control_task = uasyncio.create_task(self.control(value))

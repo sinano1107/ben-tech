@@ -33,7 +33,7 @@ class MotorController:
 
     STEPS_PER_ROTATION = 512
     DEFAULT_DELAY = 0.001
-    DEFAULT_TURNS = 4  # デフォルトの回転数
+    DEFAULT_TURNS = 2.7  # デフォルトの回転数
 
     def __init__(self):
         self.pins = [
@@ -47,11 +47,14 @@ class MotorController:
         steps = int(self.STEPS_PER_ROTATION * turns)
         sequence = self.SEQUENCE if clockwise else self.SEQUENCE[::-1]
 
-        for _ in range(steps):
-            for step in sequence:
-                for pin, value in zip(self.pins, step):
-                    pin.value(value)
-                time.sleep(delay)
+        try:
+            for _ in range(steps):
+                for step in sequence:
+                    for pin, value in zip(self.pins, step):
+                        pin.value(value)
+                    time.sleep(delay)
+        finally:
+            self.cleanup()
 
     def cleanup(self):
         for pin in self.pins:

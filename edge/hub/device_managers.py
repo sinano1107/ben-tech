@@ -3,13 +3,12 @@ from common_hub import ResponsiveDeviceManager, ControllableDeviceManager
 
 
 class LidControllerManager(ResponsiveDeviceManager):
+
     def __init__(self):
-        self.service_id = const("ac6dd643-a32e-42fb-836d-8130790d9ab4")
         super().__init__(
             name=const("BT-lid-controller"),
-            control_service_id=self.service_id,
+            service_id=const("ac6dd643-a32e-42fb-836d-8130790d9ab4"),
             control_char_id=const("74779bc7-1e28-4cb1-8dd7-3a3f2a9259ab"),
-            response_service_id=self.service_id,
             response_char_id=const("82bdb1a9-4ffd-4a97-8b5f-af7e84655133"),
         )
 
@@ -37,13 +36,12 @@ class LidControllerManager(ResponsiveDeviceManager):
 
 
 class PaperObserverManager(ResponsiveDeviceManager):
+
     def __init__(self):
-        self.service_id = const("0698d1ab-9144-496a-9878-9f6027e17ef9")
         super().__init__(
             name="BT-paper-observer",
-            control_service_id=self.service_id,
+            service_id=const("0698d1ab-9144-496a-9878-9f6027e17ef9"),
             control_char_id=const("dcdbd8b8-0ad3-45b2-867a-1e449fd14646"),
-            response_service_id=self.service_id,
             response_char_id=const("49fb080c-8d01-4996-b318-27186d78430a"),
         )
 
@@ -67,7 +65,7 @@ class AutoFlusherManager(ControllableDeviceManager):
     def __init__(self):
         super().__init__(
             name=const("BT-auto-flusher"),
-            control_service_id=const("6408f4f4-5002-4787-8c6f-c44147b06802"),
+            service_id=const("6408f4f4-5002-4787-8c6f-c44147b06802"),
             control_char_id=const("f36a79b8-f196-4975-8e53-15ed99efa275"),
         )
 
@@ -80,7 +78,7 @@ class DeodorantManager(ControllableDeviceManager):
     def __init__(self):
         super().__init__(
             name=const("BT-deodorant"),
-            control_service_id=const("cb1786f9-3211-410a-941b-269ee08c47ad"),
+            service_id=const("cb1786f9-3211-410a-941b-269ee08c47ad"),
             control_char_id=const("a13e8dd4-0046-4c9b-b320-b0fba7a2f651"),
         )
 

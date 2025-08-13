@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import _ from "lodash";
 import {
   Wifi,
   WifiOff,
@@ -395,9 +396,14 @@ export default function Component() {
       const info = await hubController.connect();
       setIsWifiConnected(info.wifiConnected);
       setIsHubConnected(true);
+      console.log(notificationManager.getSubscription());
+      console.log(info.subscription);
+      console.log(
+        _.isEqual(notificationManager.getSubscription(), info.subscription)
+      );
       setIsNotificationEnabled(
         JSON.stringify(notificationManager.getSubscription()) ===
-          info.subscription
+          JSON.stringify(info.subscription)
       );
       setConnectedDevices(info.connectedDevices);
     } catch (error) {
